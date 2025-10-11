@@ -27,5 +27,20 @@ router.post('/login', loginUser);
 // On ajoute le middleware "protect" pour sécuriser cette route
 router.get('/profile', protect, getUserProfile);
 
+
+// Route POST : lorsqu'un utilisateur a oublié son mot de passe
+// → Il envoie son email à cette route
+// → Le contrôleur "forgotPassword" va générer un lien temporaire et l'envoyer par email
+router.post('/forgot-password', forgotPassword);
+
+
+// Route POST : lorsqu'un utilisateur clique sur le lien reçu dans son email
+// → Le lien contient un "token" unique (dans l'URL : /reset-password/:token)
+// → L'utilisateur soumet ici son nouveau mot de passe
+// → Le contrôleur "resetPassword" vérifie le token et met à jour le mot de passe dans la base de données
+router.post('/reset-password/:token', resetPassword);
+
+
+
 // Exporter le routeur pour l'utiliser dans server.js
 module.exports = router;
