@@ -1,22 +1,22 @@
-import { useState } from "react"; 
-import Sidebar from "../components/Sidebar"; 
-import Navbar from "../components/Navbar";  
+import React, { useState } from "react";
+import Sidebar from "../components/Sidebar";
+import Navbar from "../components/Navbar";
 
-const MainLayout = ({ children }) => {   
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);    
-  
-  return (     
-    <div className="flex h-screen overflow-hidden">       
-      <Sidebar isCollapsed={isSidebarCollapsed} setCollapsed={setIsSidebarCollapsed} />       
-      <div className="flex-1 flex flex-col overflow-hidden">         
-        <Navbar />         
-        {/* CHANGEMENT ICI : p-6 → p-4 (ou même p-3) */}
-        <main className="flex-1 overflow-y-auto p-4">           
+export default function MainLayout({ children }) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <div style={{ background: "var(--sidebar-bg)" }}>
+        <Sidebar isCollapsed={isSidebarCollapsed} setCollapsed={setIsSidebarCollapsed} />
+      </div>
+
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "var(--page-bg)", color: "var(--text-main)" }}>
+        <Navbar />
+        <main className="flex-1 overflow-y-auto">
           {children}
-        </main>       
-      </div>     
-    </div>   
-  ); 
-};  
-
-export default MainLayout;
+        </main>
+      </div>
+    </div>
+  );
+}

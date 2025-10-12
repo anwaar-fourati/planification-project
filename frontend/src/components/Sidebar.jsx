@@ -1,85 +1,80 @@
-import { useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { 
-  Bars3Icon, 
-  HomeIcon, 
-  FolderIcon, 
-  ChartBarIcon, 
-  CogIcon, 
-  UserCircleIcon,
-  XMarkIcon 
-} from '@heroicons/react/24/outline';
+import React, { useContext } from "react";
+import { NavLink } from "react-router-dom";
+import { ThemeContext } from "../context/ThemeContext";
+import {
+  HomeIcon,
+  CheckCircleIcon,
+  CalendarIcon,
+  ChatBubbleLeftRightIcon,
+  UsersIcon,
+  Cog6ToothIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  SunIcon,
+  MoonIcon,
+  ArrowRightOnRectangleIcon,
+} from "@heroicons/react/24/outline";
 
-const Sidebar = ({ isCollapsed, setCollapsed }) => {
-  const location = useLocation();
-  const isMobile = window.innerWidth < 768;
+const menuItems = [
+  { icon: HomeIcon, label: "Home", path: "/" },
+  { icon: CheckCircleIcon, label: "My Tasks", path: "/tasks" },
+  { icon: CalendarIcon, label: "Calendar", path: "/calendar" },
+  { icon: ChatBubbleLeftRightIcon, label: "Messages", path: "/messages" },
+  { icon: UsersIcon, label: "Meetings", path: "/meetings" },
+  { icon: Cog6ToothIcon, label: "Settings", path: "/settings" },
+];
 
-  useEffect(() => {
-    if (isMobile) setCollapsed(true); // Auto-collapse on mobile
-  }, [isMobile, setCollapsed]);
-
-  const menuItems = [
-    { icon: HomeIcon, label: 'Dashboard', path: '/' },
-    { icon: FolderIcon, label: 'Projects', path: '/projects' },
-    { icon: ChartBarIcon, label: 'Reports', path: '/reports' },
-    { icon: CogIcon, label: 'Settings', path: '/settings' },
-  ];
+export default function Sidebar({ isCollapsed, setCollapsed }) {
+  const { theme, toggle } = useContext(ThemeContext);
 
   return (
-    <div className={`bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 flex flex-col ${
-      isCollapsed ? 'w-16' : 'w-64'
-    }`}>
-      {/* Toggle Button */}
-      <div className="p-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-        {!isCollapsed ? (
-          <div className="text-xl font-bold text-gray-800 dark:text-white">ProjectMgr</div>
-        ) : (
-          <div className="w-6 h-6" />
-        )}
+    <div className={`flex flex-col h-full transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"}`}>
+      <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between" style={{ background: "var(--sidebar-bg)" }}>
+        {!isCollapsed && <div className="text-xl font-bold" style={{ color: "var(--sidebar-text)" }}>Project Manager</div>}
         <button
           onClick={() => setCollapsed(!isCollapsed)}
-          className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {isCollapsed ? <Bars3Icon className="w-5 h-5 text-gray-600 dark:text-gray-300" /> : <XMarkIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />}
+          {isCollapsed ? <ChevronDoubleRightIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} /> : <ChevronDoubleLeftIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />}
         </button>
       </div>
 
-      {/* Nav Links */}
-      <nav className="flex-1 p-2">
+      <nav className="flex-1 p-2" style={{ background: "var(--sidebar-bg)" }}>
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
           return (
-            <Link
+            <NavLink
               key={item.path}
               to={item.path}
-              className={`flex items-center w-full p-3 rounded-lg mb-2 transition-colors ${
-                isActive
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              } ${isCollapsed ? 'justify-center' : ''}`}
+              className={({ isActive }) =>
+                `flex items-center w-full p-3 rounded-lg mb-1 transition-colors ${isCollapsed ? "justify-center" : ""} ${
+                  isActive ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md" : ""
+                }`
+              }
+              title={isCollapsed ? item.label : ""}
             >
-              <Icon className={`w-5 h-5 ${isCollapsed ? '' : 'mr-3'}`} />
-              {!isCollapsed && <span>{item.label}</span>}
-            </Link>
+              <Icon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />
+              {!isCollapsed && <span className="font-medium ml-3" style={{ color: "var(--sidebar-text)" }}>{item.label}</span>}
+            </NavLink>
           );
         })}
       </nav>
 
-      {/* User Profile */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
-          <UserCircleIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" />
-          {!isCollapsed && (
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">John Doe</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Admin</p>
-            </div>
-          )}
-        </div>
+      <div className="p-2 border-t dark:border-gray-700" style={{ background: "var(--sidebar-bg)" }}>
+        <button
+          onClick={toggle}
+          className={`flex items-center w-full p-3 rounded-lg transition-colors ${isCollapsed ? "justify-center" : ""}`}
+        >
+          {theme === "dark" ? <SunIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} /> : <MoonIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />}
+          {!isCollapsed && <span className="font-medium ml-3" style={{ color: "var(--sidebar-text)" }}>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+        </button>
+
+        <button className={`flex items-center w-full p-3 rounded-lg transition-colors mt-2`} onClick={() => { /* logout */ }}>
+          <ArrowRightOnRectangleIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />
+          {!isCollapsed && <span className="font-medium ml-3" style={{ color: "var(--sidebar-text)" }}>Log out</span>}
+        </button>
       </div>
     </div>
   );
-};
-
-export default Sidebar;
+}

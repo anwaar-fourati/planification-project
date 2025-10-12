@@ -1,6 +1,7 @@
 import './App.css'
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
-import Dashboard from './pages/Dashboard'   // ton fichier
+import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Projects from './pages/Projects'
 import MainLayout from './layout/MainLayout'
@@ -10,20 +11,29 @@ import Role from './pages/Role'
 import Home from './pages/Home'
 
 function App() {
+
+  useEffect(() => {
+    fetch('http://localhost:5000/')
+      .then(res => res.json())
+      .then(data => console.log(data))
+      .catch(err => console.error(err));
+  }, []);
+
   return (
     <Router>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Routes>
 
-          {/* Page d'accueil */}
+          {/* Route vers /dashboard */}
           <Route
             path="/"
             element={
               <MainLayout>
-                <Home />
+                <Dashboard />
               </MainLayout>
             }
           />
+          
 
           {/* Page des projets */}
           <Route
@@ -35,15 +45,13 @@ function App() {
             }
           />
 
-          {/* Route vers /dashboard */}
+          
+          {/* Page d'accueil */}
           <Route
-            path="/dashboard"
-            element={
-              <MainLayout>
-                <Dashboard />
-              </MainLayout>
-            }
+            path="/acceuil"
+            element={<Home />}
           />
+          
 
           {/* Page de connexion (sans layout) */}
           <Route

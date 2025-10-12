@@ -1,12 +1,19 @@
 import { useState } from 'react';
+import { login } from '../services/authService';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [formData, setFormData] = useState({ email: '', password: '' });
 
-  const handleSubmit = () => {
-    console.log('Login submitted:', formData);
+  const handleSubmit = async () => {
+    try {
+    const data = await login(formData);
+    console.log("Login successful:", data);
+    // redirect user maybe
+  } catch (err) {
+    console.error("Login error:", err.message);
+  }
   };
 
   // Eye icon SVG
@@ -55,13 +62,13 @@ const Login = () => {
 
               {/* Form */}
               <div className="space-y-5">
-                {/* Username Input */}
+                {/* Email Input */}
                 <div>
                   <input
                     type="text"
-                    placeholder="Username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>

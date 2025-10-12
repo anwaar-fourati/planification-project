@@ -1,17 +1,54 @@
 import { useState } from 'react';
+import { signup } from '../services/authService';
 
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
-    username: '',
-    emailPhone: '',
+    firstname: '',
+    lastname: '',
+    email: '',
     password: '',
     confirmPassword: ''
   });
 
-  const handleSubmit = () => {
-    console.log('Signup submitted:', formData);
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  const { firstname, lastname, email, password, confirmPassword } = formData;
+
+  if (!firstname || !lastname || !email || !password) {
+    alert("Veuillez remplir tous les champs !");
+    return;
+  }
+
+  if (formData.password !== formData.confirmPassword) {
+    alert("Passwords do not match!");
+    return;
+  }
+    try {
+    // Transforme les clés pour le backend
+    const payload = {
+      prenom: firstname,
+      nom: lastname,
+      email,
+      motdepasse: password
+    };
+    const data = await signup(payload);
+    console.log('Signup successful:', data);
+    alert("Signup successful!");
+
+    setFormData({
+      firstname: '',
+      lastname: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    });
+    } catch (err) {
+      console.error('Signup error:', err.message);
+      alert("Signup failed: " + err.message);
+    }
   };
 
   // Eye icon SVG
@@ -60,24 +97,35 @@ const Signup = () => {
 
               {/* Form */}
               <div className="space-y-4">
-                {/* Username Input */}
+                {/* Lastname Input */}
                 <div>
                   <input
                     type="text"
-                    placeholder="Username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    placeholder="Last Name"
+                    value={formData.lastname}
+                    onChange={(e) => setFormData({...formData, lastname: e.target.value})}
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>
 
-                {/* Email/Phone Input */}
+                {/* firstname Input */}
                 <div>
                   <input
                     type="text"
-                    placeholder="Email / Phone"
-                    value={formData.emailPhone}
-                    onChange={(e) => setFormData({...formData, emailPhone: e.target.value})}
+                    placeholder="First Name"
+                    value={formData.firstname}
+                    onChange={(e) => setFormData({...formData, firstname: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>
@@ -117,6 +165,8 @@ const Signup = () => {
                     {showConfirmPassword ? <EyeSlashIcon /> : <EyeIcon />}
                   </button>
                 </div>
+
+            
 
                 {/* Signup Button */}
                 <button

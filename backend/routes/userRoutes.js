@@ -7,6 +7,8 @@ const {
     registerUser,
     loginUser,
     getUserProfile,
+    forgotPassword, 
+    resetPassword
 } = require('../controllers/userController');
 
 // Importer le middleware d'authentification que nous créerons à l'étape 7
