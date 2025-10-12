@@ -2,25 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 m-0 p-0 h-full;
+/* Login Page Animations */
+@keyframes blob {
+  0%, 100% { 
+    transform: translate(0, 0) scale(1); 
   }
-  
-  body {
-    @apply antialiased m-0 p-0 h-full;
+  33% { 
+    transform: translate(30px, -50px) scale(1.1); 
   }
-  
-  #root {
-    @apply h-full w-full m-0 p-0;
+  66% { 
+    transform: translate(-20px, 20px) scale(0.9); 
   }
-  
-  /* Scrollbar */
-  ::-webkit-scrollbar {
-    @apply w-2 bg-gray-200 dark:bg-gray-700;
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-gray-400 dark:bg-gray-600;
-  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+.backdrop-blur-xl {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }

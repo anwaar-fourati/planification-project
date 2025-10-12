@@ -1,12 +1,17 @@
 import { useState } from 'react';
 
-const Login = () => {
+const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    username: '',
+    emailPhone: '',
+    password: '',
+    confirmPassword: ''
+  });
 
   const handleSubmit = () => {
-    console.log('Login submitted:', formData);
+    console.log('Signup submitted:', formData);
   };
 
   // Eye icon SVG
@@ -37,24 +42,24 @@ const Login = () => {
           {/* Left Side - Welcome Text */}
           <div className="flex-1 hidden lg:block">
             <h1 className="text-7xl font-bold text-gray-900 mb-8 leading-tight">
-              Welcome Back !
+              Roll the Carpet.!
             </h1>
             <button className="px-8 py-3 border-2 border-gray-900 text-gray-900 text-lg font-medium hover:bg-gray-900 hover:text-white transition-all duration-300 italic">
               Skip the lag ?
             </button>
           </div>
 
-          {/* Right Side - Login Form */}
+          {/* Right Side - Signup Form */}
           <div className="w-full max-w-md">
             <div className="backdrop-blur-xl bg-white/30 rounded-3xl shadow-2xl p-8 border border-white/40">
               {/* Header */}
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Login</h2>
-                <p className="text-gray-700">Glad you're back !</p>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Signup</h2>
+                <p className="text-gray-700">Just some details to get you in.!</p>
               </div>
 
               {/* Form */}
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {/* Username Input */}
                 <div>
                   <input
@@ -62,6 +67,17 @@ const Login = () => {
                     placeholder="Username"
                     value={formData.username}
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
+                  />
+                </div>
+
+                {/* Email/Phone Input */}
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Email / Phone"
+                    value={formData.emailPhone}
+                    onChange={(e) => setFormData({...formData, emailPhone: e.target.value})}
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>
@@ -84,37 +100,34 @@ const Login = () => {
                   </button>
                 </div>
 
-                {/* Remember Me */}
-                <div className="flex items-center">
+                {/* Confirm Password Input */}
+                <div className="relative">
                   <input
-                    type="checkbox"
-                    id="remember"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 text-purple-600 bg-white/50 border-gray-300 rounded focus:ring-purple-500"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm Password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                    className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600 pr-12"
                   />
-                  <label htmlFor="remember" className="ml-2 text-sm text-gray-700 cursor-pointer">
-                    Remember me
-                  </label>
-                </div>
-
-                {/* Login Button */}
-                <button
-                  onClick={handleSubmit}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-xl"
-                >
-                  Login
-                </button>
-
-                {/* Forgot Password */}
-                <div className="text-center">
-                  <button className="text-sm text-gray-700 hover:text-purple-700 transition-colors">
-                    Forgot password ?
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-900"
+                  >
+                    {showConfirmPassword ? <EyeSlashIcon /> : <EyeIcon />}
                   </button>
                 </div>
 
+                {/* Signup Button */}
+                <button
+                  onClick={handleSubmit}
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-xl mt-2"
+                >
+                  Signup
+                </button>
+
                 {/* Divider */}
-                <div className="flex items-center gap-4 my-6">
+                <div className="flex items-center gap-4 my-4">
                   <div className="flex-1 h-px bg-gray-400"></div>
                   <span className="text-sm text-gray-600">Or</span>
                   <div className="flex-1 h-px bg-gray-400"></div>
@@ -153,11 +166,11 @@ const Login = () => {
               </div>
 
               {/* Footer */}
-              <div className="mt-8 text-center space-y-4">
+              <div className="mt-6 text-center space-y-3">
                 <p className="text-sm text-gray-700">
-                  Don't have an account ? <button className="text-purple-700 font-semibold hover:underline">Signup</button>
+                  Already Registered? <button className="text-purple-700 font-semibold hover:underline">Login</button>
                 </p>
-                <div className="flex justify-center gap-4 text-xs text-gray-600">
+                <div className="flex justify-center gap-3 text-xs text-gray-600">
                   <button className="hover:text-purple-700 transition-colors">Terms & Conditions</button>
                   <span>•</span>
                   <button className="hover:text-purple-700 transition-colors">Support</button>
@@ -173,4 +186,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;
