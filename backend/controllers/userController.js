@@ -1,106 +1,183 @@
-// Importer les outils nécessaires
+// IMPORTS 
+// JWT : pour générer des tokens d'authentification
 const jwt = require('jsonwebtoken');
+// bcryptjs : pour hacher et comparer les mots de passe
 const bcrypt = require('bcryptjs');
-
-// Importer le modèle Utilisateur
+// crypto : pour générer des tokens aléatoires pour la réinitialisation
+const crypto = require('crypto');
+// nodemailer : pour envoyer des emails
+const nodemailer = require('nodemailer');
+// Modèle utilisateur
 const User = require('../models/userModel');
 
-// --- FONCTION D'AIDE ---
-// Fonction pour générer un token JWT
+
+// Génère un token JWT pour l'utilisateur connecté ou inscrit
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: '30d', // Le token expirera dans 30 jours
+        expiresIn: '30d', // le token expirera dans 30 jours
     });
 };
 
-// --- CONTRÔLEURS ---
 
-// @desc    Inscrire un nouvel utilisateur
-// @route   POST /api/users
+// --- INSCRIPTION ---
+// @route   POST /api/users/register
 // @access  Public
 const registerUser = async (req, res) => {
-    // 1. Récupérer les données du corps de la requête
-    const { nom, prenom, email, mot_de_passe, role } = req.body;
+    const { nom, prenom, email, motdepasse, role } = req.body;
 
-    // 2. Valider que tous les champs sont présents
-    if (!nom || !prenom || !email || !mot_de_passe) {
-        res.status(400); // 400 = Bad Request
-        throw new Error('Veuillez ajouter tous les champs');
+    // Vérifie que tous les champs obligatoires sont présents
+    if (!nom || !prenom || !email || !motdepasse) {
+        return res.status(400).json({ message: 'Veuillez remplir tous les champs.' });
     }
 
-    // 3. Vérifier si l'utilisateur existe déjà dans la BDD
+    // Vérifie si l'utilisateur existe déjà
     const userExists = await User.findOne({ email });
-    if (userExists) {
-        res.status(400);
-        throw new Error('Cet utilisateur existe déjà');
-    }
+    if (userExists) return res.status(400).json({ message: 'Cet utilisateur existe déjà.' });
 
-    // 4. Créer le nouvel utilisateur dans la BDD
+    // Création du nouvel utilisateur
     const user = await User.create({
         nom,
         prenom,
         email,
-        mot_de_passe, // Le hachage est géré automatiquement par le "pre save" dans le modèle !
+        motdepasse, // le mot de passe sera automatiquement haché par le pre('save') dans le modèle
         role,
     });
 
-    // 5. Si l'utilisateur a été créé avec succès
+    // Réponse si succès
     if (user) {
-        // Renvoyer les informations de l'utilisateur et un token
-        res.status(201).json({ // 201 = Created
+        res.status(201).json({
             _id: user.id,
             nom: user.nom,
             prenom: user.prenom,
             email: user.email,
             role: user.role,
-            token: generateToken(user._id),
+            token: generateToken(user._id), // on renvoie également un token JWT
         });
     } else {
-        res.status(400);
-        throw new Error('Données utilisateur invalides');
+        res.status(400).json({ message: 'Données utilisateur invalides.' });
     }
 };
 
-// @desc    Connecter (authentifier) un utilisateur
+
+// --- CONNEXION ---
 // @route   POST /api/users/login
 // @access  Public
 const loginUser = async (req, res) => {
-    // 1. Récupérer l'email et le mot de passe du corps de la requête
-    const { email, mot_de_passe } = req.body;
+    const { email, motdepasse } = req.body;
 
-    // 2. Chercher l'utilisateur dans la BDD par son email
+    // Cherche l'utilisateur par email
     const user = await User.findOne({ email });
 
-    // 3. Si l'utilisateur existe ET que le mot de passe correspond
-    if (user && (await bcrypt.compare(mot_de_passe, user.mot_de_passe))) {
-        // Renvoyer ses informations et un nouveau token
+    // Vérifie si l'utilisateur existe et si le mot de passe correspond
+    if (user && (await bcrypt.compare(motdepasse, user.motdepasse))) {
         res.json({
             _id: user.id,
             nom: user.nom,
             prenom: user.prenom,
             email: user.email,
             role: user.role,
-            token: generateToken(user._id),
+            token: generateToken(user._id), // renvoie un token JWT
         });
     } else {
-        res.status(401); // 401 = Unauthorized
-        throw new Error('Email ou mot de passe invalide');
+        res.status(401).json({ message: 'Email ou mot de passe invalide.' });
     }
 };
 
-// @desc    Récupérer les informations du profil de l'utilisateur
+
+// --- PROFIL UTILISATEUR ---
 // @route   GET /api/users/profile
-// @access  Private (protégé)
+// @access  Private (nécessite le middleware protect)
 const getUserProfile = async (req, res) => {
-    // La magie opère ici : le middleware "protect" aura déjà identifié
-    // l'utilisateur et l'aura attaché à l'objet "req".
-    // Nous n'avons donc qu'à renvoyer les informations.
+    // req.user est déjà rempli par le middleware protect
     res.status(200).json(req.user);
 };
 
-// Exporter les fonctions pour les utiliser dans les routes
+
+// --- MOT DE PASSE OUBLIÉ ---
+// @route   POST /api/users/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        // Cherche l'utilisateur par email
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: "Utilisateur non trouvé." });
+
+        // Génère un token aléatoire pour la réinitialisation
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        user.resetToken = resetToken;
+        user.resetTokenExpire = Date.now() + 3600000; // valable 1 heure
+        await user.save();
+
+        // Crée le lien complet de réinitialisation
+        const resetLink = `http://localhost:3000/reset-password/${resetToken}`;
+
+        // Configure Nodemailer pour Gmail
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS, // mot de passe d'application
+            },
+        });
+
+        // Paramètres de l'email
+        const mailOptions = {
+            to: user.email,
+            subject: 'Réinitialisation du mot de passe',
+            html: `
+                <p>Bonjour ${user.prenom},</p>
+                <p>Vous avez demandé à réinitialiser votre mot de passe.</p>
+                <p>Cliquez sur ce lien pour le changer :</p>
+                <a href="${resetLink}">${resetLink}</a>
+                <p>Ce lien expirera dans 1 heure.</p>
+            `,
+        };
+
+        // Envoi de l'email
+        await transporter.sendMail(mailOptions);
+
+        res.json({ message: "Email de réinitialisation envoyé avec succès !" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// --- RÉINITIALISATION DU MOT DE PASSE ---
+// @route   POST /api/users/reset-password/:token
+// @access  Public
+const resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { motdepasse } = req.body;
+
+    try {
+        // Cherche l'utilisateur avec token valide
+        const user = await User.findOne({
+            resetToken: token,
+            resetTokenExpire: { $gt: Date.now() }, // token non expiré
+        });
+
+        if (!user) return res.status(400).json({ message: "Lien invalide ou expiré." });
+
+        // Hache le nouveau mot de passe et sauvegarde
+        user.motdepasse = await bcrypt.hash(motdepasse, 10);
+        user.resetToken = undefined;
+        user.resetTokenExpire = undefined;
+        await user.save();
+
+        res.json({ message: "Mot de passe réinitialisé avec succès !" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+// EXPORTATION DES FONCTIONS 
 module.exports = {
     registerUser,
     loginUser,
     getUserProfile,
+    forgotPassword,
+    resetPassword,
 };
