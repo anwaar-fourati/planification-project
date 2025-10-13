@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { signup } from '../services/authService';
-
+import { Link } from 'react-router-dom';
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -32,7 +32,7 @@ const Signup = () => {
       prenom: firstname,
       nom: lastname,
       email,
-      motdepasse: password
+      mot_de_passe: password
     };
     const data = await signup(payload);
     console.log('Signup successful:', data);
@@ -218,7 +218,7 @@ const Signup = () => {
               {/* Footer */}
               <div className="mt-6 text-center space-y-3">
                 <p className="text-sm text-gray-700">
-                  Already Registered? <button className="text-purple-700 font-semibold hover:underline">Login</button>
+                  Already Registered? <Link to="/login" className="text-purple-700 font-semibold hover:underline">Login</Link>
                 </p>
                 <div className="flex justify-center gap-3 text-xs text-gray-600">
                   <button className="hover:text-purple-700 transition-colors">Terms & Conditions</button>

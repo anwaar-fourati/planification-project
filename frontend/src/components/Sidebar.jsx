@@ -1,6 +1,9 @@
 import React, { useContext } from "react";
 import { NavLink } from "react-router-dom";
 import { ThemeContext } from "../context/ThemeContext";
+import { logout } from '../services/authService';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline'; // Une icône pour le bouton
 import {
   HomeIcon,
   CheckCircleIcon,
@@ -15,6 +18,7 @@ import {
   ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 
+
 const menuItems = [
   { icon: HomeIcon, label: "Home", path: "/" },
   { icon: CheckCircleIcon, label: "My Tasks", path: "/tasks" },
@@ -26,7 +30,15 @@ const menuItems = [
 
 export default function Sidebar({ isCollapsed, setCollapsed }) {
   const { theme, toggle } = useContext(ThemeContext);
+  const navigate = useNavigate(); // 2. Préparer la redirection
 
+  // 3. Créer la fonction qui gère le clic sur le bouton
+  const handleLogout = () => {
+    logout(); // Appelle la fonction qui nettoie le localStorage
+    navigate('/'); // Redirige l'utilisateur vers la page de connexion
+    // Optionnel: vous pouvez aussi rafraîchir la page pour être sûr que tout l'état est réinitialisé
+    // window.location.reload(); 
+  };
   return (
     <div className={`flex flex-col h-full transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"}`}>
       <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between" style={{ background: "var(--sidebar-bg)" }}>
@@ -70,7 +82,7 @@ export default function Sidebar({ isCollapsed, setCollapsed }) {
           {!isCollapsed && <span className="font-medium ml-3" style={{ color: "var(--sidebar-text)" }}>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
         </button>
 
-        <button className={`flex items-center w-full p-3 rounded-lg transition-colors mt-2`} onClick={() => { /* logout */ }}>
+        <button className={`flex items-center w-full p-3 rounded-lg transition-colors mt-2`} onClick={handleLogout}>
           <ArrowRightOnRectangleIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />
           {!isCollapsed && <span className="font-medium ml-3" style={{ color: "var(--sidebar-text)" }}>Log out</span>}
         </button>

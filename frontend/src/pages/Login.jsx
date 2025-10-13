@@ -1,20 +1,33 @@
 import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../services/authService';
 
 const Login = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
-  const handleSubmit = async () => {
-    try {
-    const data = await login(formData);
+  const handleSubmit = async (e) => { // N'oubliez pas le 'e' pour preventDefault
+  e.preventDefault(); // C'est une bonne pratique de l'ajouter
+  try {
+    // Créer un payload avec les clés attendues par le backend
+    const payload = {
+      email: formData.email,
+      mot_de_passe: formData.password
+    };
+
+    const data = await login(payload); // <-- Envoie { email, mot_de_passe }
     console.log("Login successful:", data);
-    // redirect user maybe
+    // Ici, vous voudrez probablement naviguer vers une autre page
+    // Exemple avec react-router-dom: navigate('/dashboard');
+    navigate('/dashboard');
+
   } catch (err) {
     console.error("Login error:", err.message);
+    alert("Login failed: " + err.message); // Affichez l'erreur à l'utilisateur
   }
-  };
+};
 
   // Eye icon SVG
   const EyeIcon = () => (
@@ -115,9 +128,9 @@ const Login = () => {
 
                 {/* Forgot Password */}
                 <div className="text-center">
-                  <button className="text-sm text-gray-700 hover:text-purple-700 transition-colors">
+                  <Link to="/forgotpassword" className="text-sm text-gray-700 hover:text-purple-700 transition-colors">
                     Forgot password ?
-                  </button>
+                  </Link>
                 </div>
 
                 {/* Divider */}
@@ -162,7 +175,7 @@ const Login = () => {
               {/* Footer */}
               <div className="mt-8 text-center space-y-4">
                 <p className="text-sm text-gray-700">
-                  Don't have an account ? <button className="text-purple-700 font-semibold hover:underline">Signup</button>
+                  Don't have an account ? <Link to="/signup" className="text-purple-700 font-semibold hover:underline">Signup</Link>
                 </p>
                 <div className="flex justify-center gap-4 text-xs text-gray-600">
                   <button className="hover:text-purple-700 transition-colors">Terms & Conditions</button>

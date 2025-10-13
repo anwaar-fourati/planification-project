@@ -94,7 +94,7 @@ const HomePage = () => {
             {['Produits', 'Solutions', 'Services', 'Pourquoi Unision', 'Tarifs'].map((item) => (
               <a key={item} href="#" className="hover:text-purple-600 transition-colors">{item}</a>
             ))}
-            <a href="#" className="hover:text-purple-600 transition-colors border-l border-gray-300 pl-8">Connexion</a>
+            <a href="/login" className="hover:text-purple-600 transition-colors border-l border-gray-300 pl-8">Connexion</a>
             <PrimaryButton className="py-2 px-4">
               Démarrer Gratuitement
               <ArrowRightIcon className="w-4 h-4 ml-2" />
