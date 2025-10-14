@@ -60,7 +60,9 @@ const Login = () => {
               Welcome Back !
             </h1>
             <button className="px-8 py-3 border-2 border-gray-900 text-gray-900 text-lg font-medium hover:bg-gray-900 hover:text-white transition-all duration-300 italic">
+              <Link to ="/">
               Skip the lag ?
+              </Link>
             </button>
           </div>
 
