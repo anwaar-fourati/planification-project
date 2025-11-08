@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { signup } from '../services/authService';
-import { Link } from 'react-router-dom';
+// MODIFICATION 1: Importer useNavigate et Link
+import { Link, useNavigate } from 'react-router-dom'; 
+
 const Signup = () => {
+  // MODIFICATION 2: Initialiser le hook useNavigate
+  const navigate = useNavigate();
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -11,55 +16,54 @@ const Signup = () => {
     password: '',
     confirmPassword: ''
   });
+  // MODIFICATION 3: Ajouter un état pour les messages d'erreur
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    setError(''); // Réinitialiser l'erreur à chaque soumission
 
-  const { firstname, lastname, email, password, confirmPassword } = formData;
+    const { firstname, lastname, email, password, confirmPassword } = formData;
 
-  if (!firstname || !lastname || !email || !password) {
-    alert("Veuillez remplir tous les champs !");
-    return;
-  }
+    if (!firstname || !lastname || !email || !password || !confirmPassword) {
+      setError("Veuillez remplir tous les champs !");
+      return;
+    }
 
-  if (formData.password !== formData.confirmPassword) {
-    alert("Passwords do not match!");
-    return;
-  }
+    if (password !== confirmPassword) {
+      setError("Les mots de passe ne correspondent pas !");
+      return;
+    }
+
     try {
-    // Transforme les clés pour le backend
-    const payload = {
-      prenom: firstname,
-      nom: lastname,
-      email,
-      mot_de_passe: password
-    };
-    const data = await signup(payload);
-    console.log('Signup successful:', data);
-    alert("Signup successful!");
+      const payload = {
+        prenom: firstname,
+        nom: lastname,
+        email,
+        mot_de_passe: password
+      };
+      
+      const data = await signup(payload);
+      console.log('Signup successful:', data);
+      
+      // La fonction de service a stocké le token, on peut rediriger.
+      // MODIFICATION 4: Rediriger vers le dashboard
+      navigate('/dashboard');
 
-    setFormData({
-      firstname: '',
-      lastname: '',
-      email: '',
-      password: '',
-      confirmPassword: ''
-    });
     } catch (err) {
       console.error('Signup error:', err.message);
-      alert("Signup failed: " + err.message);
+      // MODIFICATION 5: Utiliser l'état d'erreur au lieu de alert()
+      setError(err.message);
     }
   };
 
-  // Eye icon SVG
+  // ... (Vos icônes EyeIcon et EyeSlashIcon ne changent pas)
   const EyeIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
     </svg>
   );
-
-  // Eye slash icon SVG
   const EyeSlashIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
@@ -68,7 +72,7 @@ const Signup = () => {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-purple-100 via-pink-50 to-purple-200">
-      {/* Decorative blurred circles */}
+      {/* ... (Vos décorations ne changent pas) ... */}
       <div className="absolute top-10 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
       <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
       <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
@@ -76,30 +80,29 @@ const Signup = () => {
       <div className="relative min-h-screen flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-6xl flex items-center justify-between gap-12">
           
-          {/* Left Side - Welcome Text */}
           <div className="flex-1 hidden lg:block">
             <h1 className="text-7xl font-bold text-gray-900 mb-8 leading-tight">
               Roll the Carpet.!
             </h1>
-            <button className="px-8 py-3 border-2 border-gray-900 text-gray-900 text-lg font-medium hover:bg-gray-900 hover:text-white transition-all duration-300 italic">
-              <Link to ="/">
+            {/* MODIFICATION 6: Utiliser Link au lieu d'un bouton qui ne fait rien */}
+            <Link to="/" className="px-8 py-3 border-2 border-gray-900 text-gray-900 text-lg font-medium hover:bg-gray-900 hover:text-white transition-all duration-300 italic">
               Skip the lag ?
-              </Link>
-            </button>
+            </Link>
           </div>
 
-          {/* Right Side - Signup Form */}
           <div className="w-full max-w-md">
             <div className="backdrop-blur-xl bg-white/30 rounded-3xl shadow-2xl p-8 border border-white/40">
-              {/* Header */}
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">Signup</h2>
                 <p className="text-gray-700">Just some details to get you in.!</p>
               </div>
+              
+              {/* MODIFICATION 7: Afficher le message d'erreur */}
+              {error && <p className="text-red-600 bg-red-100 p-3 rounded-lg text-center mb-4">{error}</p>}
 
-              {/* Form */}
-              <div className="space-y-4">
-                {/* Lastname Input */}
+              {/* MODIFICATION 8: Utiliser une balise <form> et onSubmit */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* ... (Vos inputs ne changent pas, juste la balise form autour) ... */}
                 <div>
                   <input
                     type="text"
@@ -109,8 +112,6 @@ const Signup = () => {
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>
-
-                {/* firstname Input */}
                 <div>
                   <input
                     type="text"
@@ -120,8 +121,6 @@ const Signup = () => {
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>
-
-                {/* Email */}
                 <div>
                   <input
                     type="text"
@@ -131,8 +130,6 @@ const Signup = () => {
                     className="w-full px-4 py-3 bg-white/50 backdrop-blur-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-600"
                   />
                 </div>
-
-                {/* Password Input */}
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -149,8 +146,6 @@ const Signup = () => {
                     {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
                   </button>
                 </div>
-
-                {/* Confirm Password Input */}
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
@@ -167,19 +162,18 @@ const Signup = () => {
                     {showConfirmPassword ? <EyeSlashIcon /> : <EyeIcon />}
                   </button>
                 </div>
-
-            
-
-                {/* Signup Button */}
+                
+                {/* MODIFICATION 9: Changer le type du bouton en "submit" */}
                 <button
-                  onClick={handleSubmit}
+                  type="submit"
                   className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-xl mt-2"
                 >
                   Signup
                 </button>
+              </form>
 
-                {/* Divider */}
-                <div className="flex items-center gap-4 my-4">
+              {/* ... (Votre Divider et Social Login ne changent pas) ... */}
+              <div className="flex items-center gap-4 my-4">
                   <div className="flex-1 h-px bg-gray-400"></div>
                   <span className="text-sm text-gray-600">Or</span>
                   <div className="flex-1 h-px bg-gray-400"></div>
@@ -215,20 +209,12 @@ const Signup = () => {
                     </svg>
                   </button>
                 </div>
-              </div>
 
-              {/* Footer */}
               <div className="mt-6 text-center space-y-3">
                 <p className="text-sm text-gray-700">
                   Already Registered? <Link to="/login" className="text-purple-700 font-semibold hover:underline">Login</Link>
                 </p>
-                <div className="flex justify-center gap-3 text-xs text-gray-600">
-                  <button className="hover:text-purple-700 transition-colors">Terms & Conditions</button>
-                  <span>•</span>
-                  <button className="hover:text-purple-700 transition-colors">Support</button>
-                  <span>•</span>
-                  <button className="hover:text-purple-700 transition-colors">Customer Care</button>
-                </div>
+                {/* ... (votre footer) ... */}
               </div>
             </div>
           </div>

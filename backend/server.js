@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
+const { errorHandler } = require('./middleware/errorMiddleware'); // 1. Importer le middleware
 
 // --- INITIALISATION ---
 dotenv.config();
@@ -30,6 +31,9 @@ app.get('/', (req, res) => {
 app.use('/api/users', userRoutes);
 // (Ici viendront vos autres routes, ex: app.use('/api/projects', projectRoutes))
 
+// --- GESTION DES ERREURS ---
+// 2. Utiliser le middleware d'erreur. CELA DOIT ÊTRE APRÈS TOUTES VOS ROUTES.
+app.use(errorHandler);
 
 // --- DÉMARRAGE DU SERVEUR ---
 const PORT = process.env.PORT || 5000;
