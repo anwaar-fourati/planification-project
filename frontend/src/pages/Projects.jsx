@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getToken } from '../services/authService';
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -43,12 +45,40 @@ const Projects = () => {
     fetchProjects();
   }, []);
 
+  // Si on arrive avec un `location.state` (par ex. depuis Dashboard), ouvrir le modal correspondant
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      if (location && location.state) {
+        if (location.state.openCreate) {
+          setShowAddModal(true);
+        }
+        if (location.state.openJoin) {
+          setShowParticipateModal(true);
+        }
+        // Nettoyer l'état de navigation pour éviter réouverture au refresh/back
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    } catch (err) {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
   // Fonction pour récupérer les projets depuis le backend
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token'); // ou votre méthode de stockage du token
-      
+      const token = getToken(); // utilise le service d'auth pour récupérer le token
+
+      if (!token) {
+        setError('Vous devez être connecté pour voir les projets');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch('http://localhost:5000/api/projects', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -132,7 +162,14 @@ const Projects = () => {
     setError("");
 
     try {
-      const token = localStorage.getItem('token');
+  const token = getToken();
+      if (!token) {
+        setLoading(false);
+        setError('Vous devez être connecté pour créer un projet');
+        // optionnel : rediriger vers login
+        if (navigate) navigate('/login');
+        return;
+      }
       const projectData = {
         nom: formData.projectName,
         description: formData.description,
@@ -190,7 +227,13 @@ const Projects = () => {
     setError("");
 
     try {
-      const token = localStorage.getItem('token');
+  const token = getToken();
+  if (!token) {
+        setLoading(false);
+        setError('Vous devez être connecté pour rejoindre un projet');
+        if (navigate) navigate('/login');
+        return;
+      }
       
       const response = await fetch('http://localhost:5000/api/projects/join', {
         method: 'POST',
@@ -407,7 +450,7 @@ const Projects = () => {
                 </button>
               </div>
               
-              <div className="space-y-4" onSubmit={addProject}>
+              <form className="space-y-4" onSubmit={addProject}>
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                     Project Name <span className="text-pink-600">*</span>
@@ -417,6 +460,8 @@ const Projects = () => {
                     name="projectName"
                     id="projectName"
                     required 
+                    value={formData.projectName}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600" 
                     placeholder="E.g., Unision Design System" 
                   />
@@ -430,6 +475,8 @@ const Projects = () => {
                     name="description"
                     id="description"
                     rows="3" 
+                    value={formData.description}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600" 
                     placeholder="Brief description..."
                   />
@@ -443,6 +490,8 @@ const Projects = () => {
                     <select 
                       name="status"
                       id="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
                     >
                       <option>Planning</option>
@@ -458,6 +507,8 @@ const Projects = () => {
                     <select 
                       name="priority"
                       id="priority"
+                      value={formData.priority}
+                      onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
                     >
                       <option>Low</option>
@@ -475,6 +526,8 @@ const Projects = () => {
                       name="dueDate"
                       id="dueDate"
                       required 
+                      value={formData.dueDate}
+                      onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600" 
                     />
                   </div>
@@ -490,7 +543,7 @@ const Projects = () => {
                     Cancel
                   </button>
                   <button 
-                    onClick={addProject}
+                    type="submit"
                     disabled={loading}
                     className="flex items-center px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg transition-all duration-300 disabled:opacity-50"
                   >
@@ -502,7 +555,7 @@ const Projects = () => {
                     )}
                   </button>
                 </div>
-              </div>
+              </form>
             </GlassCard>
           </div>
         )}

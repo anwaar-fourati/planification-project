@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import { 
   PlusIcon, 
   ChartBarIcon, 
@@ -19,6 +20,7 @@ const GlassCard = ({ children, className = "" }) => {
 
 const Dashboard = () => {
   const [showMenu, setShowMenu] = useState(false);
+  const navigate = useNavigate();
 
   const stats = [
     { name: "Total Projects", value: "12", change: "+2", icon: ChartBarIcon },
@@ -40,14 +42,14 @@ const Dashboard = () => {
 
   const handleCreateProject = () => {
     setShowMenu(false);
-    alert("Ouverture du formulaire de création de projet");
-    // Ici vous pouvez ajouter la logique pour ouvrir un modal de création
+    // Navigue vers la page Projects et demande l'ouverture du modal de création
+    navigate('/projects', { state: { openCreate: true } });
   };
 
   const handleJoinProject = () => {
     setShowMenu(false);
-    alert("Ouverture du formulaire pour rejoindre un projet");
-    // Ici vous pouvez ajouter la logique pour ouvrir un modal de participation
+    // Navigue vers la page Projects et demande l'ouverture du modal de rejoindre
+    navigate('/projects', { state: { openJoin: true } });
   };
 
   return (
