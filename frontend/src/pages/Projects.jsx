@@ -8,7 +8,8 @@ import {
   RectangleStackIcon,
   CalendarDaysIcon,
   PaperAirplaneIcon,
-  UserGroupIcon
+  UserGroupIcon, 
+  PencilIcon as PencilIconOutline 
 } from "@heroicons/react/24/outline";
 import { EyeIcon as EyeIconSolid, PencilIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/solid";
 
@@ -17,6 +18,9 @@ const Projects = () => {
   const [viewMode, setViewMode] = useState("cards");
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [showMenu, setShowMenu] = useState(false);
+  const [showParticipateModal, setShowParticipateModal] = useState(false); 
+  
   const [projects, setProjects] = useState([
     { id: 1, name: "Website Redesign", status: "In Progress", dueDate: "2025-10-15", priority: "High", members: 3, progress: 75 },
     { id: 2, name: "Mobile App Development", status: "Planning", dueDate: "2025-11-01", priority: "Medium", members: 5, progress: 20 },
@@ -60,6 +64,16 @@ const Projects = () => {
     setProjects(prev => [...prev, newProject]);
     setShowAddModal(false);
   };
+  
+  const handleCreateProject = () => {
+    setShowMenu(false);
+    setShowAddModal(true);
+  };
+
+  const handleJoinProject = () => {
+    setShowMenu(false);
+    setShowParticipateModal(true);
+  };
 
   return (
     <div className="w-full h-full p-6" style={{ background: "var(--page-bg)", color: "var(--text-main)" }}>
@@ -69,13 +83,50 @@ const Projects = () => {
             <h2 className="text-3xl font-bold" style={{ color: "var(--text-main)" }}>Project Workspace</h2>
             <p className="text-md" style={{ color: "var(--sidebar-text)" }}>Manage all team deliverables and track progress.</p>
           </div>
-          <button onClick={() => setShowAddModal(true)} className="flex items-center px-6 py-2 rounded-xl font-semibold transition-all duration-300 shadow-md" style={{ background: "linear-gradient(90deg,#7B61FF,#9B5CFF)", color: "#fff" }}>
-            <PlusIcon className="w-5 h-5 mr-2" />
-            New Project
-          </button>
+          
+          {/* CONTEXTE D'EMPILEMENT MAXIMAL POUR LE BOUTON + ET SON MENU */}
+          <div className="relative z-[100]"> 
+            <button 
+              onClick={() => setShowMenu(prev => !prev)} 
+              className="flex items-center p-3 rounded-full font-semibold transition-all duration-300 shadow-xl focus:ring-4 focus:ring-purple-300" 
+              style={{ background: "linear-gradient(90deg,#7B61FF,#9B5CFF)", color: "#fff" }}
+              aria-expanded={showMenu}
+            >
+              <PlusIcon className="w-6 h-6" />
+            </button>
+            
+            {showMenu && (
+              <div 
+                className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 z-50" 
+                style={{ background: "var(--glass-card-bg)", color: "var(--text-main)", border: "1px solid var(--border-color)" }}
+              >
+                <div className="py-1">
+                  
+                  {/* Option Rejoindre un projet */}
+                  <div 
+                    onClick={handleJoinProject} 
+                    className="flex items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors border-b border-purple-200/50 dark:border-purple-700/50"
+                  >
+                    <UserGroupIcon className="w-5 h-5 mr-3 text-pink-500" />
+                    <span className="font-medium">Rejoindre un projets</span>
+                  </div>
+                  
+                  {/* Option Créer un projet */}
+                  <div 
+                    onClick={handleCreateProject} 
+                    className="flex items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                  >
+                    <PencilIconOutline className="w-5 h-5 mr-3 text-purple-500" />
+                    <span className="font-medium">Créer un projets</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <GlassCard className="p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+        {/* ASSURER QUE CE CONTEXTE D'EMPILEMENT EST INFÉRIEUR */}
+        <GlassCard className="p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 relative z-10">
           <div className="relative flex-1 min-w-0">
             <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />
             <input
@@ -143,9 +194,13 @@ const Projects = () => {
                   {filteredProjects.map((project) => (
                     <tr key={project.id} className="hover:bg-purple-50/50 dark:hover:bg-gray-700/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" style={{ color: "var(--text-main)" }}>{project.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(project.status)}`}>{project.status}</span></td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(project.status)}`}>{project.status}</span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: "var(--sidebar-text)" }}><CalendarDaysIcon className="w-4 h-4 mr-1 inline" style={{ color: "var(--sidebar-icon)" }} />{project.dueDate}</td>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className={`text-sm font-semibold ${getPriorityColor(project.priority)}`}>{project.priority}</span></td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`text-sm font-semibold ${getPriorityColor(project.priority)}`}>{project.priority}</span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: "var(--sidebar-text)" }}>
                         <div className="flex items-center">
                           <div className="w-20 bg-gray-300 dark:bg-gray-600 rounded-full h-2.5 mr-2">
@@ -228,6 +283,25 @@ const Projects = () => {
                   </button>
                 </div>
               </form>
+            </GlassCard>
+          </div>
+        )}
+        
+        {/* Modale pour la participation */}
+        {showParticipateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <GlassCard className="max-w-md w-full p-8">
+              <div className="flex justify-between items-start mb-6">
+                <h3 className="text-2xl font-bold" style={{ color: "var(--text-main)" }}>Rejoindre un projet</h3>
+                <button onClick={() => setShowParticipateModal(false)} className="p-2 text-gray-500 dark:text-gray-400 rounded-full"><XMarkIcon className="w-6 h-6" /></button>
+              </div>
+              <p className="mb-6" style={{ color: "var(--sidebar-text)" }}>
+                Ceci est une simulation de la fenêtre pour rejoindre un projet.
+                Vous pourriez ajouter ici un champ pour entrer un code d'invitation ou rechercher un projet public.
+              </p>
+              <div className="flex justify-end">
+                 <button onClick={() => setShowParticipateModal(false)} className="px-6 py-2 rounded-xl" style={{ background: "linear-gradient(90deg,#7B61FF,#9B5CFF)", color: "#fff" }}>Fermer</button>
+              </div>
             </GlassCard>
           </div>
         )}

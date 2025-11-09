@@ -32,8 +32,12 @@ const Dashboard = () => {
           <h2 className="text-3xl font-bold" style={{ color: "var(--text-main)" }}>Unision Dashboard</h2>
           <button className="flex items-center px-6 py-2 rounded-xl font-semibold transition-all duration-300 shadow-md" style={{ background: "linear-gradient(90deg,#7B61FF,#9B5CFF)", color: "#fff" }}>
             <PlusIcon className="w-5 h-5 mr-2" />
-            New Project
+            Create a new Project
           </button>
+           <button className="flex items-center px-6 py-2 rounded-xl font-semibold transition-all duration-300 shadow-md" style={{ background: "linear-gradient(90deg,#FF61B8,#FF8CBA)", color: "#fff" }}>
+             <UserGroupIcon className="w-5 h-5 mr-2" />
+            Participate in a Project
+    </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

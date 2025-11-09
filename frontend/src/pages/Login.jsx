@@ -24,7 +24,7 @@ const Login = () => {
       console.log("Login successful:", data);
       
       // La fonction de service a stocké le token, on redirige vers le dashboard
-      navigate('/dashboard');
+      navigate('/projects');
 
     } catch (err) {
       console.error("Login error:", err.message);
