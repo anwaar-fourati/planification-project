@@ -10,6 +10,7 @@ import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
 import Role from './pages/Role'
 import Home from './pages/Home'
+import Tasks from './pages/Tasks';
 
 // --- Importation des Composants de Routage ---
 import MainLayout from './layout/MainLayout'
@@ -68,6 +69,7 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route path="/projects/:projectId/tasks" element={<Tasks />} />
 
           {/* --- REDIRECTION PAR DÉFAUT --- */}
           {/* Si aucune autre route ne correspond, on redirige vers la page d'accueil */}

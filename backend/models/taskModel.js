@@ -33,10 +33,10 @@ const taskSchema = mongoose.Schema(
             enum: ['À faire', 'En cours', 'Terminé', 'En attente'],
             default: 'À faire'
         },
-        priorite: {
-            type: String,
-            enum: ['Basse', 'Moyenne', 'Haute'],
-            default: 'Moyenne'
+       priorite: {
+           type: String,
+           enum: ['Low', 'Medium', 'High'],
+           default: 'Medium'
         },
         dateEcheance: {
             type: Date

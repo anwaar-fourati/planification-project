@@ -162,7 +162,7 @@ const Projects = () => {
     setError("");
 
     try {
-  const token = getToken();
+      const token = getToken();
       if (!token) {
         setLoading(false);
         setError('Vous devez être connecté pour créer un projet');
@@ -227,8 +227,8 @@ const Projects = () => {
     setError("");
 
     try {
-  const token = getToken();
-  if (!token) {
+      const token = getToken();
+      if (!token) {
         setLoading(false);
         setError('Vous devez être connecté pour rejoindre un projet');
         if (navigate) navigate('/login');
@@ -390,9 +390,21 @@ const Projects = () => {
                     <span className="font-bold mr-1">{project.progress}%</span> complete • {project.members} members
                   </p>
                 </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <div className={`text-sm font-semibold ${getPriorityColor(project.priority)}`}>{project.priority} Priority</div>
-                  <CalendarDaysIcon className="w-5 h-5 text-gray-400" />
+                
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className={`text-sm font-semibold ${getPriorityColor(project.priority)}`}>{project.priority} Priority</div>
+                    <CalendarDaysIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+                  
+                  {/* BOUTON VIEW TASKS */}
+                  <button
+                    onClick={() => navigate(`/projects/${project.id}/tasks`)}
+                    className="w-full flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-semibold text-sm"
+                  >
+                    <RectangleStackIcon className="w-5 h-5 mr-2" />
+                    View Tasks
+                  </button>
                 </div>
               </GlassCard>
             ))}
@@ -408,6 +420,7 @@ const Projects = () => {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-400">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-400">Priority</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-400">Progress</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 dark:text-gray-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-purple-200/50 dark:divide-purple-700/50">
@@ -430,6 +443,15 @@ const Projects = () => {
                           </div>
                           <span className="font-semibold">{project.progress}%</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => navigate(`/projects/${project.id}/tasks`)}
+                          className="flex items-center px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-300 text-xs font-semibold"
+                        >
+                          <RectangleStackIcon className="w-4 h-4 mr-1" />
+                          Tasks
+                        </button>
                       </td>
                     </tr>
                   ))}
