@@ -73,8 +73,20 @@ const projectSchema = mongoose.Schema(
                 type: Date,
                 default: Date.now
             }
+        }],
+        // Ajout de ce champ
+        taches: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Task'
+        }],
+
+        // Invitations en attente (par email)
+        invitationsPendantes: [{
+            // ...
         }]
+    
     },
+    
     {
         timestamps: true
     }

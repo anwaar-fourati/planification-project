@@ -10,7 +10,8 @@ const {
     getProjet,
     updateProjet,
     deleteProjet,
-    quitterProjet
+    quitterProjet,
+    retirerMembre
 } = require('../controllers/projectController');
 
 // Importer le middleware de protection
@@ -37,5 +38,8 @@ router.post('/:id/invite', protect, inviterMembres);  // POST /api/projects/:id/
 
 // Route pour quitter un projet
 router.post('/:id/leave', protect, quitterProjet);    // POST /api/projects/:id/leave
+
+// Route pour retirer un membre (par le chef de projet)
+router.delete('/:id/members/:membreId', protect, retirerMembre);
 
 module.exports = router;

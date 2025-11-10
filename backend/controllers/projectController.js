@@ -1,6 +1,7 @@
 const Project = require('../models/projectModel');
 const User = require('../models/userModel');
 const sendEmail = require('../utils/email');
+const Task = require('../models/taskModel');
 
 // @desc    Créer un nouveau projet
 // @route   POST /api/projects
@@ -328,6 +329,54 @@ const quitterProjet = async (req, res) => {
     } catch (error) {
         console.error('Erreur:', error);
         res.status(500).json({ message: 'Erreur serveur' });
+    }};
+    // @desc    Retirer un membre d'un projet
+// @route   DELETE /api/projects/:id/members/:membreId
+// @access  Private (seulement créateur)
+const retirerMembre = async (req, res) => {
+    try {
+        const projet = await Project.findById(req.params.id);
+        const { membreId } = req.params;
+
+        if (!projet) {
+            return res.status(404).json({ message: 'Projet non trouvé' });
+        }
+
+        // Vérifier que l'utilisateur est le créateur
+        if (!projet.estCreateur(req.user._id)) {
+            return res.status(403).json({ message: 'Seul le créateur peut retirer des membres' });
+        }
+        
+        // On ne peut pas retirer le chef de projet lui-même
+        if (projet.createur.toString() === membreId) {
+             return res.status(400).json({ message: 'Le chef de projet ne peut pas être retiré' });
+        }
+
+        // Vérifier si le membre existe dans le projet
+        const membreExiste = projet.membres.some(m => m.utilisateur.toString() === membreId);
+        if (!membreExiste) {
+            return res.status(404).json({ message: 'Ce membre ne fait pas partie du projet' });
+        }
+
+        // Retirer le membre du tableau
+        projet.membres = projet.membres.filter(
+            m => m.utilisateur.toString() !== membreId
+        );
+        
+        // Optionnel : Retirer l'assignation des tâches de ce membre
+        await Task.updateMany(
+            { projet: projet._id, assigneA: membreId },
+            { $unset: { assigneA: "" } } // ou { $set: { assigneA: null } }
+        );
+
+
+        await projet.save();
+
+        res.status(200).json({ message: 'Membre retiré avec succès' });
+
+    } catch (error) {
+        console.error('Erreur lors du retrait du membre:', error);
+        res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
@@ -339,5 +388,6 @@ module.exports = {
     getProjet,
     updateProjet,
     deleteProjet,
-    quitterProjet
+    quitterProjet,
+    retirerMembre
 };

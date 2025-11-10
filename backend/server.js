@@ -39,6 +39,10 @@ app.use('/api/projects', projectRoutes);
 // 2. Utiliser le middleware d'erreur. CELA DOIT ÊTRE APRÈS TOUTES VOS ROUTES.
 app.use(errorHandler);
 
+// AJOUTER CETTE LIGNE :
+// On réutilise le préfixe /api/projects pour que les routes de tâches soient logiquement imbriquées
+// Ex: POST /api/projects/PROJECT_ID/tasks
+app.use('/api/projects', require('./routes/taskRoutes'));
 // --- DÉMARRAGE DU SERVEUR ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
