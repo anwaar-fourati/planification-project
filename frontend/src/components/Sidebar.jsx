@@ -21,7 +21,7 @@ import {
 
 const menuItems = [
   { icon: HomeIcon, label: "Home", path: "/" },
-  { icon: CheckCircleIcon, label: "My Tasks", path: "/tasks" },
+  { icon: CheckCircleIcon, label: "My Projects", path: "/projects" },
   { icon: CalendarIcon, label: "Calendar", path: "/calendar" },
   { icon: ChatBubbleLeftRightIcon, label: "Messages", path: "/messages" },
   { icon: UsersIcon, label: "Meetings", path: "/meetings" },

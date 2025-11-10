@@ -43,6 +43,8 @@ app.use(errorHandler);
 // On réutilise le préfixe /api/projects pour que les routes de tâches soient logiquement imbriquées
 // Ex: POST /api/projects/PROJECT_ID/tasks
 app.use('/api/projects', require('./routes/taskRoutes'));
+// AJOUTER CETTE LIGNE pour les routes de modification/suppression de tâches
+app.use('/api/tasks', require('./routes/taskRoutes'));
 // --- DÉMARRAGE DU SERVEUR ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

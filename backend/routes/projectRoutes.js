@@ -14,6 +14,8 @@ const {
     retirerMembre
 } = require('../controllers/projectController');
 
+// Importer les contrôleurs de tâches
+const { creerTache, getTachesDuProjet } = require('../controllers/taskController');
 // Importer le middleware de protection
 const { protect } = require('../middleware/authMiddleware');
 
@@ -42,4 +44,9 @@ router.post('/:id/leave', protect, quitterProjet);    // POST /api/projects/:id/
 // Route pour retirer un membre (par le chef de projet)
 router.delete('/:id/members/:membreId', protect, retirerMembre);
 
+// AJOUTER CES ROUTES POUR LES TÂCHES LIÉES À UN PROJET
+router.route('/:id/tasks')
+    .post(protect, creerTache)      // POST /api/projects/:id/tasks - Créer une tâche
+    .get(protect, getTachesDuProjet);   // GET /api/projects/:id/tasks - Lister les tâches
+    
 module.exports = router;
