@@ -24,7 +24,7 @@ const GlassCard = ({ children, className = "" }) => {
 };
 
 const Tasks = () => {
-  const { projectId } = useParams(); // Récupérer l'ID du projet depuis l'URL
+  const { projectId } = useParams();
   const navigate = useNavigate();
   
   const [tasks, setTasks] = useState([]);
@@ -50,7 +50,7 @@ const Tasks = () => {
   useEffect(() => {
     if (projectId) {
       fetchTasks();
-      fetchProjectDetails(); // Pour récupérer les membres du projet
+      fetchProjectDetails();
     }
   }, [projectId]);
 
@@ -60,18 +60,19 @@ const Tasks = () => {
       setLoading(true);
       const data = await getProjectTasks(projectId);
       
-      // Formatter les données pour le frontend
-      const formattedTasks = data.map(task => ({
+      // Transform backend data to frontend format
+      const formattedTasks = data.taches.map(task => ({
         id: task._id,
         name: task.nom,
         description: task.description,
         status: task.statut,
         priority: task.priorite,
-        dueDate: task.dateEcheance ? new Date(task.dateEcheance).toISOString().split('T')[0] : '',
+        dueDate: task.dateEcheance,
         assignedTo: task.assigneA ? {
           id: task.assigneA._id,
           name: `${task.assigneA.prenom} ${task.assigneA.nom}`
-        } : null
+        } : null,
+        createur: task.createur
       }));
       
       setTasks(formattedTasks);
@@ -193,7 +194,7 @@ const Tasks = () => {
       description: task.description || '',
       priorite: task.priority,
       statut: task.status,
-      dateEcheance: task.dueDate,
+      dateEcheance: task.dueDate || '',
       assigneA: task.assignedTo?.id || ''
     });
     setShowAddModal(true);
@@ -209,10 +210,17 @@ const Tasks = () => {
   // Couleurs pour les statuts
   const getStatusColor = (status) => {
     switch (status) {
-      case "Terminée": return "bg-emerald-500/20 text-emerald-800 dark:text-emerald-200";
-      case "En cours": return "bg-purple-500/20 text-purple-800 dark:text-purple-200";
-      case "À faire": return "bg-pink-500/20 text-pink-800 dark:text-pink-200";
-      default: return "bg-gray-200 text-gray-800";
+      case "Terminé":
+      case "Terminée": 
+        return "bg-emerald-500/20 text-emerald-800 dark:text-emerald-200";
+      case "En cours": 
+        return "bg-purple-500/20 text-purple-800 dark:text-purple-200";
+      case "À faire": 
+        return "bg-pink-500/20 text-pink-800 dark:text-pink-200";
+      case "En attente":
+        return "bg-yellow-500/20 text-yellow-800 dark:text-yellow-200";
+      default: 
+        return "bg-gray-200 text-gray-800";
     }
   };
 
@@ -284,7 +292,8 @@ const Tasks = () => {
               <option value="all">All Status</option>
               <option value="à faire">À faire</option>
               <option value="en cours">En cours</option>
-              <option value="terminée">Terminée</option>
+              <option value="terminé">Terminé</option>
+              <option value="en attente">En attente</option>
             </select>
             <FunnelIcon className="pointer-events-none absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
           </div>
@@ -294,6 +303,13 @@ const Tasks = () => {
         {loading && <p className="text-center text-gray-600 dark:text-gray-400">Chargement...</p>}
         
         {error && <p className="text-center text-red-600">{error}</p>}
+
+        {!loading && filteredTasks.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-gray-400 text-lg">Aucune tâche trouvée</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Créez votre première tâche pour commencer</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTasks.map((task) => (
@@ -409,9 +425,10 @@ const Tasks = () => {
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
                     >
-                      <option>À faire</option>
-                      <option>En cours</option>
-                      <option>Terminée</option>
+                      <option value="À faire">À faire</option>
+                      <option value="En cours">En cours</option>
+                      <option value="Terminé">Terminé</option>
+                      <option value="En attente">En attente</option>
                     </select>
                   </div>
 
@@ -425,9 +442,9 @@ const Tasks = () => {
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
                     >
-                      <option>Low</option>
-                      <option>Medium</option>
-                      <option>High</option>
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
                     </select>
                   </div>
                 </div>

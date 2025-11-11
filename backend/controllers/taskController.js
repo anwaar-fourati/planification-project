@@ -35,7 +35,7 @@ const creerTache = async (req, res) => {
         const tache = await Task.create({
             nom,
             description,
-            priorite: priorite || 'Moyenne',
+            priorite: priorite || 'Meduim',
             dateEcheance,
             assigneA,
             statut: statut || 'À faire',
