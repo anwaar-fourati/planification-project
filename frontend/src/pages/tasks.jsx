@@ -98,7 +98,8 @@ const Tasks = () => {
       if (!response.ok) throw new Error('Erreur lors de la récupération du projet');
 
       const projet = await response.json();
-      
+      // AJOUTEZ CETTE LIGNE DE DÉBOGAGE
+      console.log('Données du projet reçues:', projet);
       // Formatter les membres pour le select
       const members = projet.membres.map(membre => ({
         id: membre.utilisateur._id,

@@ -23,6 +23,13 @@ const creerTache = async (req, res) => {
         if (!projet.estCreateur(req.user._id)) {
             return res.status(403).json({ message: 'Seul le chef de projet peut ajouter des tâches' });
         }
+        
+        // AJOUT : Vérifier que la date d'échéance de la tâche ne dépasse pas celle du projet
+        if (dateEcheance && projet.dateEcheance) {
+            if (new Date(dateEcheance) > new Date(projet.dateEcheance)) {
+                return res.status(400).json({ message: 'La date d\'échéance de la tâche ne peut pas être postérieure à celle du projet.' });
+            }
+        }
 
         // Si la tâche est assignée, vérifier que l'utilisateur assigné est bien membre du projet
         if (assigneA) {
@@ -56,6 +63,10 @@ const creerTache = async (req, res) => {
         });
 
     } catch (error) {
+        // AJOUT : Gérer l'erreur de duplicité
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Une tâche avec ce nom existe déjà dans ce projet.' });
+        }
         console.error('Erreur lors de la création de la tâche:', error);
         res.status(500).json({ message: 'Erreur serveur lors de la création de la tâche' });
     }
@@ -146,6 +157,13 @@ const updateTache = async (req, res) => {
             return res.status(403).json({ message: 'Action non autorisée' });
         }
 
+        // AJOUT : Vérifier la date d'échéance lors de la mise à jour
+        if (dateEcheance && projet.dateEcheance) {
+            if (new Date(dateEcheance) > new Date(projet.dateEcheance)) {
+                return res.status(400).json({ message: 'La date d\'échéance de la tâche ne peut pas être postérieure à celle du projet.' });
+            }
+        }
+
         // Si c'est l'utilisateur assigné (et pas le créateur), il ne peut modifier que le statut
         if (isAssigne && !isCreateur) {
             if (statut) {
@@ -179,6 +197,10 @@ const updateTache = async (req, res) => {
         });
 
     } catch (error) {
+        // AJOUT : Gérer l'erreur de duplicité
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Une tâche avec ce nom existe déjà dans ce projet.' });
+        }
         console.error('Erreur lors de la mise à jour de la tâche:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }

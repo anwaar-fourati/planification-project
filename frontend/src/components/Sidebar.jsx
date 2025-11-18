@@ -42,7 +42,7 @@ export default function Sidebar({ isCollapsed, setCollapsed }) {
   return (
     <div className={`flex flex-col h-full transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"}`}>
       <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between" style={{ background: "var(--sidebar-bg)" }}>
-        {!isCollapsed && <div className="text-xl font-bold" style={{ color: "var(--sidebar-text)" }}>Project Manager</div>}
+        {!isCollapsed && <div className="text-xl font-bold" style={{ color: "var(--sidebar-text)" }}>UNISION</div>}
         <button
           onClick={() => setCollapsed(!isCollapsed)}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

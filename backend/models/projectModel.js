@@ -5,7 +5,8 @@ const projectSchema = mongoose.Schema(
         nom: {
             type: String,
             required: [true, 'Veuillez entrer un nom de projet'],
-            trim: true
+            trim: true,
+            unique: true
         },
         description: {
             type: String,

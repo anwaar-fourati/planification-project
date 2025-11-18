@@ -214,6 +214,9 @@ const getMesProjets = async (req, res) => {
 // @route   GET /api/projects/:id
 // @access  Private
 const getProjet = async (req, res) => {
+    // ====> AJOUTEZ CETTE LIGNE DE DÉBOGAGE <====
+    console.log(`--- Vérification d'accès pour le projet ${req.params.id} ---`);
+    console.log(`ID de l'utilisateur connecté (depuis le token): ${req.user._id}`); 
     try {
         const projet = await Project.findById(req.params.id)
             .populate('createur', 'nom prenom email')
@@ -222,12 +225,17 @@ const getProjet = async (req, res) => {
         if (!projet) {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
+        // On peut même ajouter un log juste avant la vérification
+        console.log(`ID du créateur du projet : ${projet.createur}`);
+        console.log('IDs des membres du projet :', projet.membres.map(m => m.utilisateur));
 
         // Vérifier que l'utilisateur est membre
         if (!projet.estMembre(req.user._id)) {
+            console.log('>>> ACCÈS REFUSÉ <<<');
             return res.status(403).json({ message: 'Accès refusé' });
         }
 
+        console.log('>>> ACCÈS REFUSÉ <<<');
         res.status(200).json(projet);
 
     } catch (error) {

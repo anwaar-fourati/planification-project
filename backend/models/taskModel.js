@@ -47,6 +47,9 @@ const taskSchema = mongoose.Schema(
     }
 );
 
+// AJOUT : Création d'un index composé pour s'assurer que le nom de la tâche
+// est unique AU SEIN d'un même projet.
+taskSchema.index({ projet: 1, nom: 1 }, { unique: true });
 const Task = mongoose.model('Task', taskSchema);
 
 module.exports = Task;
