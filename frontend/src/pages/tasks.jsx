@@ -2,16 +2,17 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from 'react-router-dom';
 import { getToken } from '../services/authService';
 import { getProjectTasks, createTask, updateTask, deleteTask } from '../services/taskService';
+import { getProjectDetails } from '../services/projectService';
 import {
   PlusIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
   XMarkIcon,
-  CheckIcon,
   PencilIcon,
   TrashIcon,
   ClockIcon,
-  UserIcon
+  UserIcon,
+  ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 
 // GlassCard Component
@@ -29,12 +30,14 @@ const Tasks = () => {
   
   const [tasks, setTasks] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [projectData, setProjectData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [accessDenied, setAccessDenied] = useState(false); // NOUVEAU: État pour accès refusé
   
   // Form data
   const [formData, setFormData] = useState({
@@ -46,7 +49,7 @@ const Tasks = () => {
     assigneA: ''
   });
 
-  // Charger les tâches au montage
+  // Charger les tâches et les détails du projet au montage
   useEffect(() => {
     if (projectId) {
       fetchTasks();
@@ -60,7 +63,6 @@ const Tasks = () => {
       setLoading(true);
       const data = await getProjectTasks(projectId);
       
-      // Transform backend data to frontend format
       const formattedTasks = data.taches.map(task => ({
         id: task._id,
         name: task.nom,
@@ -78,28 +80,26 @@ const Tasks = () => {
       setTasks(formattedTasks);
     } catch (err) {
       console.error('Erreur:', err);
-      setError(err.message);
+      if (err.message.includes("Accès refusé") || err.message.includes("403")) {
+        setAccessDenied(true);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Récupérer les détails du projet (pour avoir la liste des membres)
+  // Récupérer les détails du projet
   const fetchProjectDetails = async () => {
     try {
-      const token = getToken();
-      const response = await fetch(`http://localhost:5000/api/projects/${projectId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Erreur lors de la récupération du projet');
-
-      const projet = await response.json();
-      // AJOUTEZ CETTE LIGNE DE DÉBOGAGE
+      const projet = await getProjectDetails(projectId);
+      
       console.log('Données du projet reçues:', projet);
+      
+      // Stocker les données complètes du projet
+      setProjectData(projet);
+      
       // Formatter les membres pour le select
       const members = projet.membres.map(membre => ({
         id: membre.utilisateur._id,
@@ -109,6 +109,12 @@ const Tasks = () => {
       setProjectMembers(members);
     } catch (err) {
       console.error('Erreur:', err);
+      if (err.message.includes("Accès refusé") || err.message.includes("403")) {
+        setAccessDenied(true);
+        setError("Vous n'avez pas accès à ce projet");
+      } else {
+        setError('Erreur lors du chargement des détails du projet');
+      }
     }
   };
 
@@ -121,11 +127,28 @@ const Tasks = () => {
     }));
   };
 
+  // VALIDATION DE LA DATE DE TÂCHE
+  const validateTaskDate = (taskDate) => {
+    if (!projectData?.dateEcheance || !taskDate) return true;
+    
+    const taskDueDate = new Date(taskDate);
+    const projectDue = new Date(projectData.dateEcheance);
+    
+    return taskDueDate <= projectDue;
+  };
+
   // Créer ou modifier une tâche
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // VALIDATION COTÉ FRONTEND
+    if (formData.dateEcheance && !validateTaskDate(formData.dateEcheance)) {
+      setError(`La date de la tâche ne peut pas être après la date limite du projet (${new Date(projectData.dateEcheance).toLocaleDateString()})`);
+      setLoading(false);
+      return;
+    }
 
     try {
       const taskData = {
@@ -138,17 +161,13 @@ const Tasks = () => {
       };
 
       if (editingTask) {
-        // Mise à jour
         await updateTask(editingTask.id, taskData);
       } else {
-        // Création
         await createTask(projectId, taskData);
       }
 
-      // Recharger les tâches
       await fetchTasks();
       
-      // Fermer le modal et réinitialiser
       setShowAddModal(false);
       setEditingTask(null);
       setFormData({
@@ -162,8 +181,14 @@ const Tasks = () => {
 
     } catch (err) {
       console.error('Erreur:', err);
-      setError(err.message);
-      alert(err.message);
+      // GESTION SPÉCIFIQUE DE L'ERREUR DE DATE
+      if (err.message.includes("La date d'échéance de la tâche ne peut pas être postérieure")) {
+        setError(err.message);
+      } else if (err.message.includes("Accès refusé") || err.message.includes("403")) {
+        setError("Vous n'avez pas la permission de modifier ce projet");
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -181,7 +206,11 @@ const Tasks = () => {
       await fetchTasks();
     } catch (err) {
       console.error('Erreur:', err);
-      alert(err.message);
+      if (err.message.includes("Accès refusé") || err.message.includes("403")) {
+        alert("Vous n'avez pas la permission de supprimer des tâches dans ce projet");
+      } else {
+        alert(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -234,11 +263,57 @@ const Tasks = () => {
     }
   };
 
+  // Fonction pour formater la date limite du projet
+  const getProjectDueDateText = () => {
+    if (!projectData?.dateEcheance) return null;
+    
+    const projectDue = new Date(projectData.dateEcheance);
+    const today = new Date();
+    const diffTime = projectDue - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    let statusText = "";
+    if (diffDays < 0) {
+      statusText = " (dépassée)";
+    } else if (diffDays === 0) {
+      statusText = " (aujourd'hui)";
+    } else if (diffDays === 1) {
+      statusText = " (demain)";
+    } else if (diffDays <= 7) {
+      statusText = ` (dans ${diffDays} jours)`;
+    }
+    
+    return `Date limite du projet : ${projectDue.toLocaleDateString()}${statusText}`;
+  };
+
+  // AFFICHAGE SI ACCÈS REFUSÉ
+  if (accessDenied) {
+    return (
+      <div className="w-full min-h-screen p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
+        <div className="relative space-y-6 w-full max-w-7xl mx-auto">
+          <div className="flex flex-col items-center justify-center py-20">
+            <ExclamationTriangleIcon className="w-24 h-24 text-yellow-500 mb-6" />
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Accès Refusé</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 text-center">
+              Vous n'avez pas accès à ce projet ou le projet n'existe pas.
+            </p>
+            <button 
+              onClick={() => navigate('/projects')}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Retour aux projets
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-h-screen p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
       <div className="relative space-y-6 w-full max-w-7xl mx-auto">
         
-        {/* EN-TÊTE */}
+        {/* EN-TÊTE - AJOUT DE L'INFO DATE LIMITE */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <button 
@@ -248,123 +323,147 @@ const Tasks = () => {
               ← Retour aux projets
             </button>
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Task Management</h2>
-            <p className="text-md text-gray-600 dark:text-gray-400">Organize and track project deliverables</p>
+            <p className="text-md text-gray-600 dark:text-gray-400">
+              {projectData?.nom ? `Projet : ${projectData.nom}` : 'Organize and track project deliverables'}
+              {projectData?.dateEcheance && (
+                <span className="block text-sm text-purple-600 dark:text-purple-400 mt-1">
+                  {getProjectDueDateText()}
+                </span>
+              )}
+            </p>
           </div>
           
-          <button 
-            onClick={() => {
-              setEditingTask(null);
-              setFormData({
-                nom: '',
-                description: '',
-                priorite: 'Medium',
-                statut: 'À faire',
-                dateEcheance: '',
-                assigneA: ''
-              });
-              setShowAddModal(true);
-            }}
-            className="flex items-center px-6 py-3 rounded-full font-semibold transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-110 bg-gradient-to-r from-purple-600 to-pink-600 text-white"
-          >
-            <PlusIcon className="w-5 h-5 mr-2" />
-            Add Task
-          </button>
+          {/* Afficher le bouton seulement si l'utilisateur a accès */}
+          {projectData && (
+            <button 
+              onClick={() => {
+                setEditingTask(null);
+                setFormData({
+                  nom: '',
+                  description: '',
+                  priorite: 'Medium',
+                  statut: 'À faire',
+                  dateEcheance: '',
+                  assigneA: ''
+                });
+                setShowAddModal(true);
+              }}
+              className="flex items-center px-6 py-3 rounded-full font-semibold transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-110 bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+            >
+              <PlusIcon className="w-5 h-5 mr-2" />
+              Add Task
+            </button>
+          )}
         </div>
 
         {/* BARRE DE RECHERCHE ET FILTRES */}
-        <GlassCard className="p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          <div className="relative flex-1">
-            <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
-            />
-          </div>
+        {projectData && (
+          <GlassCard className="p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+            <div className="relative flex-1">
+              <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+              />
+            </div>
 
-          <div className="relative">
-            <select 
-              value={filterStatus} 
-              onChange={(e) => setFilterStatus(e.target.value)} 
-              className="appearance-none px-4 py-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
-            >
-              <option value="all">All Status</option>
-              <option value="à faire">À faire</option>
-              <option value="en cours">En cours</option>
-              <option value="terminé">Terminé</option>
-              <option value="en attente">En attente</option>
-            </select>
-            <FunnelIcon className="pointer-events-none absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
-          </div>
-        </GlassCard>
+            <div className="relative">
+              <select 
+                value={filterStatus} 
+                onChange={(e) => setFilterStatus(e.target.value)} 
+                className="appearance-none px-4 py-3 rounded-2xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+              >
+                <option value="all">All Status</option>
+                <option value="à faire">À faire</option>
+                <option value="en cours">En cours</option>
+                <option value="terminé">Terminé</option>
+                <option value="en attente">En attente</option>
+              </select>
+              <FunnelIcon className="pointer-events-none absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+            </div>
+          </GlassCard>
+        )}
 
         {/* AFFICHAGE DES TÂCHES */}
         {loading && <p className="text-center text-gray-600 dark:text-gray-400">Chargement...</p>}
         
-        {error && <p className="text-center text-red-600">{error}</p>}
+        {error && !accessDenied && (
+          <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+            <p className="text-red-700 dark:text-red-300 text-center">{error}</p>
+          </div>
+        )}
 
-        {!loading && filteredTasks.length === 0 && (
+        {!loading && !projectData && !accessDenied && (
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-gray-400 text-lg">Chargement du projet...</p>
+          </div>
+        )}
+
+        {!loading && projectData && filteredTasks.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400 text-lg">Aucune tâche trouvée</p>
             <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Créez votre première tâche pour commencer</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map((task) => (
-            <GlassCard key={task.id} className="p-5 flex flex-col justify-between hover:scale-105 transition-transform">
-              <div>
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="font-semibold text-lg text-gray-900 dark:text-white">{task.name}</h4>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEdit(task)}
-                      className="p-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600"
-                    >
-                      <PencilIcon className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(task.id)}
-                      className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {task.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{task.description}</p>
-                )}
-
-                <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full mb-3 ${getStatusColor(task.status)}`}>
-                  {task.status}
-                </span>
-
-                <div className="space-y-2 text-sm">
-                  <div className={`flex items-center ${getPriorityColor(task.priority)}`}>
-                    <span className="font-semibold">{task.priority} Priority</span>
+        {projectData && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTasks.map((task) => (
+              <GlassCard key={task.id} className="p-5 flex flex-col justify-between hover:scale-105 transition-transform">
+                <div>
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-semibold text-lg text-gray-900 dark:text-white">{task.name}</h4>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(task)}
+                        className="p-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(task.id)}
+                        className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  {task.dueDate && (
-                    <div className="flex items-center text-gray-600 dark:text-gray-400">
-                      <ClockIcon className="w-4 h-4 mr-2" />
-                      {new Date(task.dueDate).toLocaleDateString()}
-                    </div>
+                  {task.description && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{task.description}</p>
                   )}
 
-                  {task.assignedTo && (
-                    <div className="flex items-center text-gray-600 dark:text-gray-400">
-                      <UserIcon className="w-4 h-4 mr-2" />
-                      {task.assignedTo.name}
+                  <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full mb-3 ${getStatusColor(task.status)}`}>
+                    {task.status}
+                  </span>
+
+                  <div className="space-y-2 text-sm">
+                    <div className={`flex items-center ${getPriorityColor(task.priority)}`}>
+                      <span className="font-semibold">{task.priority} Priority</span>
                     </div>
-                  )}
+
+                    {task.dueDate && (
+                      <div className="flex items-center text-gray-600 dark:text-gray-400">
+                        <ClockIcon className="w-4 h-4 mr-2" />
+                        {new Date(task.dueDate).toLocaleDateString()}
+                      </div>
+                    )}
+
+                    {task.assignedTo && (
+                      <div className="flex items-center text-gray-600 dark:text-gray-400">
+                        <UserIcon className="w-4 h-4 mr-2" />
+                        {task.assignedTo.name}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </GlassCard>
-          ))}
-        </div>
+              </GlassCard>
+            ))}
+          </div>
+        )}
 
         {/* MODAL CRÉATION/ÉDITION */}
         {showAddModal && (
@@ -378,6 +477,7 @@ const Tasks = () => {
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingTask(null);
+                    setError("");
                   }}
                   className="p-2 text-gray-500 hover:text-gray-700 rounded-full"
                 >
@@ -460,8 +560,14 @@ const Tasks = () => {
                       name="dateEcheance"
                       value={formData.dateEcheance}
                       onChange={handleInputChange}
+                      max={projectData?.dateEcheance}
                       className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-300 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600" 
                     />
+                    {projectData?.dateEcheance && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                        ⚠️ Doit être avant le {new Date(projectData.dateEcheance).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -484,12 +590,20 @@ const Tasks = () => {
                   </div>
                 </div>
 
+                {/* AFFICHAGE DES ERREURS */}
+                {error && (
+                  <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+                    <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+                  </div>
+                )}
+
                 <div className="flex justify-end space-x-3 pt-6">
                   <button 
                     type="button" 
                     onClick={() => {
                       setShowAddModal(false);
                       setEditingTask(null);
+                      setError("");
                     }}
                     className="px-6 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 transition-colors"
                     disabled={loading}
