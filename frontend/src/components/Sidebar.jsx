@@ -7,7 +7,6 @@ import { ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline'; // Une i
 import {
   HomeIcon,
   CheckCircleIcon,
-  CalendarIcon,
   ChatBubbleLeftRightIcon,
   UsersIcon,
   Cog6ToothIcon,
@@ -20,9 +19,8 @@ import {
 
 
 const menuItems = [
-  { icon: HomeIcon, label: "Home", path: "/" },
+  { icon: HomeIcon, label: "Home", path: "/dashboard" },
   { icon: CheckCircleIcon, label: "My Projects", path: "/projects" },
-  { icon: CalendarIcon, label: "Calendar", path: "/calendar" },
   { icon: ChatBubbleLeftRightIcon, label: "Messages", path: "/messages" },
   { icon: UsersIcon, label: "Meetings", path: "/meetings" },
   { icon: Cog6ToothIcon, label: "Settings", path: "/settings" },

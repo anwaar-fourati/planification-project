@@ -11,34 +11,29 @@ import ForgotPassword from './pages/ForgotPassword'
 import Role from './pages/Role'
 import Home from './pages/Home'
 import Tasks from './pages/Tasks';
+import ProjectCalendar from './pages/ProjectCalendar';
 
 // --- Importation des Composants de Routage ---
 import MainLayout from './layout/MainLayout'
 import ProtectedRoute from './components/ProtectedRoute';
-import PublicRoute from './components/PublicRoute'; // On importe notre nouveau garde
+import PublicRoute from './components/PublicRoute';
 import ResetPassword from './pages/ResetPassword';
+import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
-  // On peut supprimer le useEffect qui faisait un fetch, il n'est plus utile ici.
-
   return (
     <Router>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Routes>
           
           {/* --- ROUTES PUBLIQUES --- */}
-          {/* Ces pages sont inaccessibles si on est déjà connecté */}
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
           <Route path="/forgotpassword" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
           <Route path="/resetpassword/:token" element={<PublicRoute><ResetPassword /></PublicRoute>} />
-
-          {/* La page d'accueil peut rester publique pour tout le monde */}
           <Route path="/" element={<Home />} />
 
-
           {/* --- ROUTES PROTÉGÉES --- */}
-          {/* Tout ce qui est ici nécessite d'être connecté */}
           <Route 
             path="/dashboard" 
             element={
@@ -60,7 +55,7 @@ function App() {
             } 
           />
           <Route 
-            path="/role" // Si cette page doit aussi être protégée
+            path="/role"
             element={
               <ProtectedRoute>
                 <MainLayout>
@@ -69,11 +64,33 @@ function App() {
               </ProtectedRoute>
             } 
           />
-          <Route path="/projects/:projectId/tasks" element={<Tasks />} />
+          
+          {/* Project Tasks Route */}
+          <Route 
+            path="/projects/:projectId/tasks" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Tasks />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
 
-          {/* --- REDIRECTION PAR DÉFAUT --- */}
-          {/* Si aucune autre route ne correspond, on redirige vers la page d'accueil */}
-          <Route path="*" element={<Navigate to="/" />} />
+          {/* Project Calendar Route */}
+          <Route 
+            path="/projects/:projectId/calendar" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ProjectCalendar />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+
+          <Route path="*" element={<NotFoundPage />} />
 
         </Routes>
       </div>

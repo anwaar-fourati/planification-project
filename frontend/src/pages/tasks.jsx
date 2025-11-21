@@ -12,7 +12,8 @@ import {
   TrashIcon,
   ClockIcon,
   UserIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  CalendarDaysIcon
 } from "@heroicons/react/24/outline";
 
 // GlassCard Component
@@ -37,9 +38,8 @@ const Tasks = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [accessDenied, setAccessDenied] = useState(false); // NOUVEAU: État pour accès refusé
+  const [accessDenied, setAccessDenied] = useState(false);
   
-  // Form data
   const [formData, setFormData] = useState({
     nom: '',
     description: '',
@@ -49,7 +49,6 @@ const Tasks = () => {
     assigneA: ''
   });
 
-  // Charger les tâches et les détails du projet au montage
   useEffect(() => {
     if (projectId) {
       fetchTasks();
@@ -57,7 +56,6 @@ const Tasks = () => {
     }
   }, [projectId]);
 
-  // Récupérer les tâches
   const fetchTasks = async () => {
     try {
       setLoading(true);
@@ -90,17 +88,11 @@ const Tasks = () => {
     }
   };
 
-  // Récupérer les détails du projet
   const fetchProjectDetails = async () => {
     try {
       const projet = await getProjectDetails(projectId);
-      
-      console.log('Données du projet reçues:', projet);
-      
-      // Stocker les données complètes du projet
       setProjectData(projet);
       
-      // Formatter les membres pour le select
       const members = projet.membres.map(membre => ({
         id: membre.utilisateur._id,
         name: `${membre.utilisateur.prenom} ${membre.utilisateur.nom}`
@@ -118,7 +110,6 @@ const Tasks = () => {
     }
   };
 
-  // Gérer les changements du formulaire
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -127,7 +118,6 @@ const Tasks = () => {
     }));
   };
 
-  // VALIDATION DE LA DATE DE TÂCHE
   const validateTaskDate = (taskDate) => {
     if (!projectData?.dateEcheance || !taskDate) return true;
     
@@ -137,13 +127,11 @@ const Tasks = () => {
     return taskDueDate <= projectDue;
   };
 
-  // Créer ou modifier une tâche
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // VALIDATION COTÉ FRONTEND
     if (formData.dateEcheance && !validateTaskDate(formData.dateEcheance)) {
       setError(`La date de la tâche ne peut pas être après la date limite du projet (${new Date(projectData.dateEcheance).toLocaleDateString()})`);
       setLoading(false);
@@ -181,7 +169,6 @@ const Tasks = () => {
 
     } catch (err) {
       console.error('Erreur:', err);
-      // GESTION SPÉCIFIQUE DE L'ERREUR DE DATE
       if (err.message.includes("La date d'échéance de la tâche ne peut pas être postérieure")) {
         setError(err.message);
       } else if (err.message.includes("Accès refusé") || err.message.includes("403")) {
@@ -194,7 +181,6 @@ const Tasks = () => {
     }
   };
 
-  // Supprimer une tâche
   const handleDelete = async (taskId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette tâche ?')) {
       return;
@@ -216,7 +202,6 @@ const Tasks = () => {
     }
   };
 
-  // Ouvrir le modal d'édition
   const handleEdit = (task) => {
     setEditingTask(task);
     setFormData({
@@ -230,14 +215,12 @@ const Tasks = () => {
     setShowAddModal(true);
   };
 
-  // Filtrer les tâches
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || task.status.toLowerCase() === filterStatus.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
-  // Couleurs pour les statuts
   const getStatusColor = (status) => {
     switch (status) {
       case "Terminé":
@@ -263,7 +246,6 @@ const Tasks = () => {
     }
   };
 
-  // Fonction pour formater la date limite du projet
   const getProjectDueDateText = () => {
     if (!projectData?.dateEcheance) return null;
     
@@ -286,7 +268,6 @@ const Tasks = () => {
     return `Date limite du projet : ${projectDue.toLocaleDateString()}${statusText}`;
   };
 
-  // AFFICHAGE SI ACCÈS REFUSÉ
   if (accessDenied) {
     return (
       <div className="w-full min-h-screen p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
@@ -313,7 +294,7 @@ const Tasks = () => {
     <div className="w-full min-h-screen p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
       <div className="relative space-y-6 w-full max-w-7xl mx-auto">
         
-        {/* EN-TÊTE - AJOUT DE L'INFO DATE LIMITE */}
+        {/* EN-TÊTE */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <button 
@@ -333,29 +314,44 @@ const Tasks = () => {
             </p>
           </div>
           
-          {/* Afficher le bouton seulement si l'utilisateur a accès */}
+          {/* QUICK ACTIONS */}
           {projectData && (
-            <button 
-              onClick={() => {
-                setEditingTask(null);
-                setFormData({
-                  nom: '',
-                  description: '',
-                  priorite: 'Medium',
-                  statut: 'À faire',
-                  dateEcheance: '',
-                  assigneA: ''
-                });
-                setShowAddModal(true);
-              }}
-              className="flex items-center px-6 py-3 rounded-full font-semibold transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-110 bg-gradient-to-r from-purple-600 to-pink-600 text-white"
-            >
-              <PlusIcon className="w-5 h-5 mr-2" />
-              Add Task
-            </button>
+            <div className="flex gap-3">
+              {/* Calendar Button */}
+              <button 
+                onClick={() => navigate(`/projects/${projectId}/calendar`)}
+                className="flex items-center px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl text-white"
+                style={{ background: "linear-gradient(135deg, #6366F1 0%, #8C79D9 100%)" }}
+              >
+                <CalendarDaysIcon className="w-5 h-5 mr-2" />
+                Calendar
+              </button>
+              
+              {/* Add Task Button */}
+              <button 
+                onClick={() => {
+                  setEditingTask(null);
+                  setFormData({
+                    nom: '',
+                    description: '',
+                    priorite: 'Medium',
+                    statut: 'À faire',
+                    dateEcheance: '',
+                    assigneA: ''
+                  });
+                  setShowAddModal(true);
+                }}
+                className="flex items-center px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl text-white"
+                style={{ background: "linear-gradient(135deg, #8C79D9 0%, #A78BFA 100%)" }}
+              >
+                <PlusIcon className="w-5 h-5 mr-2" />
+                Add Task
+              </button>
+            </div>
           )}
         </div>
 
+        {/* Rest of the Tasks component remains the same... */}
         {/* BARRE DE RECHERCHE ET FILTRES */}
         {projectData && (
           <GlassCard className="p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
@@ -465,7 +461,7 @@ const Tasks = () => {
           </div>
         )}
 
-        {/* MODAL CRÉATION/ÉDITION */}
+        {/* MODAL CRÉATION/ÉDITION - Keep existing modal code */}
         {showAddModal && (
           <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
             <GlassCard className="max-w-xl w-full max-h-[90vh] overflow-y-auto p-8">
@@ -590,7 +586,6 @@ const Tasks = () => {
                   </div>
                 </div>
 
-                {/* AFFICHAGE DES ERREURS */}
                 {error && (
                   <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
                     <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
