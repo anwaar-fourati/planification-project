@@ -13,7 +13,7 @@ import Home from './pages/Home'
 import Tasks from './pages/Tasks';
 import ProjectCalendar from './pages/ProjectCalendar';
 import Settings from './pages/Settings';
-import Profile from './pages/Profile'; // ← AJOUT
+import Profile from './pages/Profile';
 
 // --- Importation des Composants de Routage ---
 import MainLayout from './layout/MainLayout'
@@ -21,9 +21,13 @@ import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import ResetPassword from './pages/ResetPassword';
 import NotFoundPage from './pages/NotFoundPage';
+
+// --- IMPORTATION DE TOUS LES COMPOSANTS (VOS MEETINGS + CHAT DE VOS AMIS) ---
 import Meetings from './pages/Meetings';
 import MeetingDetails from './pages/MeetingDetails';
 import MeetingRoom from './pages/MeetingRoom';
+import ProjectChat from './pages/ProjectChat';
+import Chats from './pages/Chats';
 
 function App() {
   return (
@@ -94,7 +98,31 @@ function App() {
             } 
           />
 
-          {/* Profile Route - NOUVEAU */}
+          {/* Project Chat Route (de vos amis) */}
+          <Route 
+            path="/projects/:projectId/chat" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ProjectChat />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Messages (Chats list - de vos amis) */}
+          <Route 
+            path="/messages" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Chats />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Profile Route */}
           <Route 
             path="/profile" 
             element={
@@ -118,11 +146,40 @@ function App() {
             } 
           />
 
+          {/* --- ROUTES MEETINGS (vos routes) --- */}
+          <Route 
+            path="/meetings" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Meetings />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/meetings/:roomId" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <MeetingDetails />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/meetings/:roomId/room" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <MeetingRoom />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Route fallback */}
           <Route path="*" element={<NotFoundPage />} />
-          // Ajoutez ces routes
-          <Route path="/meetings" element={<Meetings />} />
-          <Route path="/meetings/:roomId" element={<MeetingDetails />} />
-          <Route path="/meetings/:roomId/room" element={<MeetingRoom />} />
 
         </Routes>
       </div>
