@@ -59,6 +59,26 @@ export const getProjectTasks = async (projectId) => {
 };
 
 /**
+ * Récupérer les tâches assignées à l'utilisateur connecté
+ * @route   GET /api/tasks/my-tasks
+ * @access  Private
+ */
+export const getMesTaches = async () => {
+  const res = await fetch(`${API_URL}/tasks/my-tasks`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    return data;
+  } else {
+    throw new Error(data.message || 'Erreur lors de la récupération des tâches');
+  }
+};
+
+/**
  * Mettre à jour une tâche
  * @param {string} taskId - L'ID de la tâche
  * @param {object} taskData - { nom, description, statut, priorite, dateEcheance, assigneA }
@@ -95,5 +115,24 @@ export const deleteTask = async (taskId) => {
     return data;
   } else {
     throw new Error(data.message || 'La suppression de la tâche a échouée');
+  }
+};
+
+/**
+ * Récupérer une tâche spécifique
+ * @param {string} taskId - L'ID de la tâche
+ */
+export const getTask = async (taskId) => {
+  const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    return data;
+  } else {
+    throw new Error(data.message || 'Tâche non trouvée');
   }
 };

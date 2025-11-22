@@ -13,6 +13,7 @@ import Home from './pages/Home'
 import Tasks from './pages/Tasks';
 import ProjectCalendar from './pages/ProjectCalendar';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile'; // ← AJOUT
 
 // --- Importation des Composants de Routage ---
 import MainLayout from './layout/MainLayout'
@@ -85,6 +86,18 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <ProjectCalendar />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Profile Route - NOUVEAU */}
+          <Route 
+            path="/profile" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Profile />
                 </MainLayout>
               </ProtectedRoute>
             } 
