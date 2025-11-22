@@ -2,6 +2,7 @@ const Project = require('../models/projectModel');
 const User = require('../models/userModel');
 const sendEmail = require('../utils/email');
 const Task = require('../models/taskModel');
+const { creerMeetingRoomPourProjet, ajouterMembreMeetingRoom } = require('../controllers/meetingController');
 
 // @desc    Créer un nouveau projet
 // @route   POST /api/projects
@@ -39,6 +40,14 @@ const creerProjet = async (req, res) => {
         });
 
         await projet.populate('createur', 'nom prenom email');
+
+        // NOUVEAU: Créer automatiquement une salle de réunion pour ce projet
+        try {
+            await creerMeetingRoomPourProjet(projet._id, req.user._id, projet.nom);
+        } catch (meetingError) {
+            console.error('Erreur lors de la création de la salle de réunion:', meetingError);
+            // On continue même si la création de la salle échoue
+        }
 
         res.status(201).json({
             message: 'Projet créé avec succès',
@@ -79,7 +88,6 @@ const rejoindreProjet = async (req, res) => {
             return res.status(404).json({ message: 'Aucun projet trouvé avec ce code' });
         }
 
-        // Vérifier si l'utilisateur est déjà membre
         const userId = req.user._id.toString();
         const isCreator = projet.createur.toString() === userId;
         const isMember = projet.membres.some(m => m.utilisateur.toString() === userId);
@@ -97,6 +105,14 @@ const rejoindreProjet = async (req, res) => {
         await projet.populate('createur', 'nom prenom email');
         await projet.populate('membres.utilisateur', 'nom prenom email');
 
+        // NOUVEAU: Ajouter automatiquement l'utilisateur à la salle de réunion du projet
+        try {
+            await ajouterMembreMeetingRoom(projet._id, req.user._id);
+        } catch (meetingError) {
+            console.error('Erreur lors de l\'ajout à la salle de réunion:', meetingError);
+            // On continue même si l'ajout à la salle échoue
+        }
+
         res.status(200).json({
             message: 'Vous avez rejoint le projet avec succès',
             projet
@@ -113,7 +129,7 @@ const rejoindreProjet = async (req, res) => {
 // @access  Private (seulement créateur)
 const inviterMembres = async (req, res) => {
     try {
-        const { emails } = req.body; // Array d'emails
+        const { emails } = req.body;
 
         if (!emails || !Array.isArray(emails) || emails.length === 0) {
             return res.status(400).json({ message: 'Veuillez fournir au moins un email' });
@@ -125,21 +141,16 @@ const inviterMembres = async (req, res) => {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
 
-        // Vérifier que l'utilisateur est le créateur
         if (!projet.estCreateur(req.user._id)) {
             return res.status(403).json({ message: 'Seul le créateur peut inviter des membres' });
         }
 
-        // Pour chaque email
         for (const email of emails) {
-            // Vérifier si l'email est déjà invité
             const dejaInvite = projet.invitationsPendantes.some(inv => inv.email === email);
             
             if (!dejaInvite) {
-                // Ajouter à la liste des invitations
                 projet.invitationsPendantes.push({ email });
 
-                // Envoyer l'email d'invitation
                 const message = `
                     Bonjour,
                     
@@ -210,9 +221,6 @@ const getMesProjets = async (req, res) => {
 // @route   GET /api/projects/:id
 // @access  Private
 const getProjet = async (req, res) => {
-    console.log(`--- Vérification d'accès pour le projet ${req.params.id} ---`);
-    console.log(`ID de l'utilisateur connecté: ${req.user._id}`); 
-    
     try {
         const projet = await Project.findById(req.params.id)
             .populate('createur', 'nom prenom email')
@@ -222,21 +230,14 @@ const getProjet = async (req, res) => {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
 
-        // Vérification d'accès corrigée
         const userId = req.user._id.toString();
         const isCreator = projet.createur._id.toString() === userId;
         const isMember = projet.membres.some(m => m.utilisateur._id.toString() === userId);
-        
-        console.log(`Créateur du projet: ${projet.createur._id}`);
-        console.log(`Est créateur: ${isCreator}`);
-        console.log(`Est membre: ${isMember}`);
 
         if (!isCreator && !isMember) {
-            console.log('>>> ACCÈS REFUSÉ <<<');
             return res.status(403).json({ message: 'Accès refusé. Vous n\'êtes pas membre de ce projet.' });
         }
 
-        console.log('>>> ACCÈS AUTORISÉ <<<');
         res.status(200).json(projet);
 
     } catch (error) {
@@ -256,7 +257,6 @@ const updateProjet = async (req, res) => {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
 
-        // Vérifier que l'utilisateur est le créateur
         const userId = req.user._id.toString();
         const isCreator = projet.createur.toString() === userId;
         
@@ -264,7 +264,6 @@ const updateProjet = async (req, res) => {
             return res.status(403).json({ message: 'Seul le créateur peut modifier le projet' });
         }
 
-        // Mettre à jour les champs autorisés
         const { nom, description, statut, priorite, dateEcheance, progression } = req.body;
 
         if (nom) projet.nom = nom;
@@ -298,7 +297,6 @@ const deleteProjet = async (req, res) => {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
 
-        // Vérifier que l'utilisateur est le créateur
         const userId = req.user._id.toString();
         const isCreator = projet.createur.toString() === userId;
         
@@ -327,7 +325,6 @@ const quitterProjet = async (req, res) => {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
 
-        // Le créateur ne peut pas quitter son propre projet
         const userId = req.user._id.toString();
         const isCreator = projet.createur.toString() === userId;
         
@@ -335,7 +332,6 @@ const quitterProjet = async (req, res) => {
             return res.status(400).json({ message: 'Le créateur ne peut pas quitter le projet. Supprimez-le à la place.' });
         }
 
-        // Retirer l'utilisateur des membres
         projet.membres = projet.membres.filter(
             m => m.utilisateur.toString() !== userId
         );
@@ -362,7 +358,6 @@ const retirerMembre = async (req, res) => {
             return res.status(404).json({ message: 'Projet non trouvé' });
         }
 
-        // Vérifier que l'utilisateur est le créateur
         const userId = req.user._id.toString();
         const isCreator = projet.createur.toString() === userId;
         
@@ -370,23 +365,19 @@ const retirerMembre = async (req, res) => {
             return res.status(403).json({ message: 'Seul le créateur peut retirer des membres' });
         }
         
-        // On ne peut pas retirer le chef de projet lui-même
         if (projet.createur.toString() === membreId) {
              return res.status(400).json({ message: 'Le chef de projet ne peut pas être retiré' });
         }
 
-        // Vérifier si le membre existe dans le projet
         const membreExiste = projet.membres.some(m => m.utilisateur.toString() === membreId);
         if (!membreExiste) {
             return res.status(404).json({ message: 'Ce membre ne fait pas partie du projet' });
         }
 
-        // Retirer le membre du tableau
         projet.membres = projet.membres.filter(
             m => m.utilisateur.toString() !== membreId
         );
         
-        // Optionnel : Retirer l'assignation des tâches de ce membre
         await Task.updateMany(
             { projet: projet._id, assigneA: membreId },
             { $unset: { assigneA: "" } }

@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const calendarRoutes = require('./routes/calendarRoutes');
+const meetingRoutes = require('./routes/meetingRoutes');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 // --- INITIALISATION ---
@@ -32,16 +33,12 @@ app.get('/', (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 // Routes pour les tâches (modification/suppression)
 app.use('/api/tasks', require('./routes/taskRoutes'));
 
 // --- GESTION DES ERREURS ---
-// Middleware pour les routes non trouvées (404)
-app.use((req, res) => {
-    res.status(404).json({ message: `Route ${req.method} ${req.originalUrl} non trouvée` });
-});
-
 // Utiliser le middleware d'erreur. CELA DOIT ÊTRE APRÈS TOUTES VOS ROUTES.
 app.use(errorHandler);
 
