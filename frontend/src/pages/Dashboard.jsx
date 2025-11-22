@@ -160,7 +160,7 @@ const Dashboard = () => {
           name: project.nom || 'Unnamed Project',
           status: project.statut || 'Unknown',
           progress: project.progression || 0,
-          members: (project.membres?.length || 0) + 1, // +1 for creator
+          members: project.membres?.length || 0, // Le créateur est déjà inclus dans membres
           dueDate: project.dateEcheance
         }));
 
