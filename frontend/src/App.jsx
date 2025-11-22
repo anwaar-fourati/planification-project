@@ -21,6 +21,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import ResetPassword from './pages/ResetPassword';
 import NotFoundPage from './pages/NotFoundPage';
+import Meetings from './pages/Meetings';
+import MeetingDetails from './pages/MeetingDetails';
+import MeetingRoom from './pages/MeetingRoom';
 
 function App() {
   return (
@@ -116,6 +119,10 @@ function App() {
           />
 
           <Route path="*" element={<NotFoundPage />} />
+          // Ajoutez ces routes
+          <Route path="/meetings" element={<Meetings />} />
+          <Route path="/meetings/:roomId" element={<MeetingDetails />} />
+          <Route path="/meetings/:roomId/room" element={<MeetingRoom />} />
 
         </Routes>
       </div>
