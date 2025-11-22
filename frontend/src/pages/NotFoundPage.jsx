@@ -26,7 +26,7 @@ export default function NotFoundPage({ title = "Page not found", message = "We c
 
           <div className="mt-6 flex justify-center md:justify-start gap-3">
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/")}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               {homeLabel}

@@ -2,6 +2,8 @@ const Project = require('../models/projectModel');
 const User = require('../models/userModel');
 const sendEmail = require('../utils/email');
 const Task = require('../models/taskModel');
+const Chat = require('../models/chatModel');
+const Message = require('../models/messageModel');
 const { creerMeetingRoomPourProjet, ajouterMembreMeetingRoom } = require('../controllers/meetingController');
 
 // @desc    Créer un nouveau projet
@@ -47,6 +49,18 @@ const creerProjet = async (req, res) => {
         } catch (meetingError) {
             console.error('Erreur lors de la création de la salle de réunion:', meetingError);
             // On continue même si la création de la salle échoue
+        }
+
+        // NOUVEAU: Créer automatiquement un chat pour ce projet
+        try {
+            await Chat.create({
+                projet: projet._id,
+                nom: `${projet.nom} - Chat`,
+                membres: projet.membres.map(m => ({ utilisateur: m.utilisateur }))
+            });
+        } catch (chatError) {
+            console.error('Erreur lors de la création du chat de projet:', chatError);
+            // On continue même si le chat ne peut pas être créé
         }
 
         res.status(201).json({
@@ -111,6 +125,17 @@ const rejoindreProjet = async (req, res) => {
         } catch (meetingError) {
             console.error('Erreur lors de l\'ajout à la salle de réunion:', meetingError);
             // On continue même si l'ajout à la salle échoue
+        }
+
+        // NOUVEAU: Ajouter l'utilisateur au chat du projet (crée le chat si absent)
+        try {
+            await Chat.findOneAndUpdate(
+                { projet: projet._id },
+                { $push: { membres: { utilisateur: req.user._id } } },
+                { upsert: true }
+            );
+        } catch (chatErr) {
+            console.error('Erreur lors de l\'ajout au chat du projet:', chatErr);
         }
 
         res.status(200).json({
@@ -306,6 +331,17 @@ const deleteProjet = async (req, res) => {
 
         await projet.deleteOne();
 
+        // Supprimer le chat et les messages liés au projet
+        try {
+            const chat = await Chat.findOne({ projet: projet._id });
+            if (chat) {
+                await Message.deleteMany({ chat: chat._id });
+                await Chat.deleteOne({ _id: chat._id });
+            }
+        } catch (chatDelErr) {
+            console.error('Erreur lors de la suppression des chats/messages du projet:', chatDelErr);
+        }
+
         res.status(200).json({ message: 'Projet supprimé avec succès' });
 
     } catch (error) {
@@ -337,6 +373,13 @@ const quitterProjet = async (req, res) => {
         );
 
         await projet.save();
+
+        // Retirer l'utilisateur du chat du projet
+        try {
+            await Chat.updateOne({ projet: projet._id }, { $pull: { membres: { utilisateur: req.user._id } } });
+        } catch (chatErr) {
+            console.error('Erreur lors du retrait du membre du chat:', chatErr);
+        }
 
         res.status(200).json({ message: 'Vous avez quitté le projet avec succès' });
 
@@ -384,6 +427,13 @@ const retirerMembre = async (req, res) => {
         );
 
         await projet.save();
+
+        // Retirer le membre du chat du projet
+        try {
+            await Chat.updateOne({ projet: projet._id }, { $pull: { membres: { utilisateur: membreId } } });
+        } catch (chatErr) {
+            console.error('Erreur lors du retrait du membre du chat:', chatErr);
+        }
 
         res.status(200).json({ message: 'Membre retiré avec succès' });
 

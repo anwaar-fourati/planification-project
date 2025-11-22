@@ -34,6 +34,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/meetings', meetingRoutes);
+// Routes pour la messagerie (chat de projet)
+app.use('/api/messages', require('./routes/messageRoutes'));
+// Routes pour récupérer le chat (par projet)
+app.use('/api/chats', require('./routes/chatRoutes'));
 
 // Routes pour les tâches (modification/suppression)
 app.use('/api/tasks', require('./routes/taskRoutes'));

@@ -21,6 +21,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import ResetPassword from './pages/ResetPassword';
 import NotFoundPage from './pages/NotFoundPage';
+import ProjectChat from './pages/ProjectChat';
+import Chats from './pages/Chats';
 
 function App() {
   return (
@@ -86,6 +88,30 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <ProjectCalendar />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Project Chat Route */}
+          <Route 
+            path="/projects/:projectId/chat" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ProjectChat />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Messages (Chats list) */}
+          <Route 
+            path="/messages" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Chats />
                 </MainLayout>
               </ProtectedRoute>
             } 
