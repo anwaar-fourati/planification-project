@@ -12,6 +12,7 @@ import Role from './pages/Role'
 import Home from './pages/Home'
 import Tasks from './pages/Tasks';
 import ProjectCalendar from './pages/ProjectCalendar';
+import Settings from './pages/Settings';
 
 // --- Importation des Composants de Routage ---
 import MainLayout from './layout/MainLayout'
@@ -89,6 +90,17 @@ function App() {
             } 
           />
 
+          {/* Settings Route */}
+          <Route 
+            path="/settings" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Settings />
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
 
           <Route path="*" element={<NotFoundPage />} />
 

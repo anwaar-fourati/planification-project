@@ -21,20 +21,20 @@ const protect = async (req, res, next) => {
             // On exclut le champ du mot de passe pour la sécurité
             req.user = await User.findById(decoded.id).select('-mot_de_passe');
 
+            if (!req.user) {
+                return res.status(401).json({ message: 'Utilisateur non trouvé' });
+            }
+
             // 5. Si tout est bon, passer à la suite (le prochain middleware ou le contrôleur)
             next();
 
         } catch (error) {
-            console.error(error);
-            res.status(401); // 401 = Unauthorized
-            throw new Error('Non autorisé, le token a échoué');
+            console.error('Erreur d\'authentification:', error);
+            return res.status(401).json({ message: 'Non autorisé, le token a échoué' });
         }
-    }
-
-    // S'il n'y a pas de token du tout
-    if (!token) {
-        res.status(401);
-        throw new Error('Non autorisé, pas de token');
+    } else {
+        // S'il n'y a pas de token du tout
+        return res.status(401).json({ message: 'Non autorisé, pas de token' });
     }
 };
 

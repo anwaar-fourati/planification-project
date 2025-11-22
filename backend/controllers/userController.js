@@ -188,11 +188,89 @@ const resetPassword = async (req, res) => {
         token: generateToken(user._id), // Renvoyer un token pour connecter l'utilisateur directement
     });
 };
+
+// @desc    Mettre à jour le profil de l'utilisateur
+// @route   PUT /api/users/profile
+// @access  Private (protégé)
+const updateUserProfile = async (req, res) => {
+    try {
+        const { nom, prenom, email, tel, telCode } = req.body;
+        const userId = req.user._id;
+
+        // Construire l'objet de mise à jour
+        const updateData = {};
+        if (nom) updateData.nom = nom;
+        if (prenom) updateData.prenom = prenom;
+        if (email) {
+            // Vérifier si l'email n'est pas déjà utilisé par un autre utilisateur
+            const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Cet email est déjà utilisé par un autre utilisateur' });
+            }
+            updateData.email = email;
+        }
+        if (tel !== undefined) updateData.tel = tel;
+        if (telCode !== undefined) updateData.telCode = telCode;
+
+        // Mettre à jour l'utilisateur
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            updateData,
+            { new: true, runValidators: true }
+        ).select('-mot_de_passe');
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'Utilisateur non trouvé' });
+        }
+
+        res.status(200).json(updatedUser);
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du profil:', error);
+        res.status(500).json({ message: error.message || 'Erreur serveur lors de la mise à jour du profil' });
+    }
+};
+
+// @desc    Mettre à jour le mot de passe de l'utilisateur
+// @route   PUT /api/users/password
+// @access  Private (protégé)
+const updateUserPassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Utilisateur non trouvé' });
+        }
+
+        // Vérifier que le mot de passe actuel est correct
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.mot_de_passe);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
+        }
+
+        // Valider le nouveau mot de passe
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ message: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
+        }
+
+        // Mettre à jour le mot de passe (le hook pre-save va le hacher automatiquement)
+        user.mot_de_passe = newPassword;
+        await user.save();
+
+        res.status(200).json({ message: 'Mot de passe mis à jour avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du mot de passe:', error);
+        res.status(500).json({ message: error.message || 'Erreur serveur lors de la mise à jour du mot de passe' });
+    }
+};
+
 // Exporter les fonctions pour les utiliser dans les routes
 module.exports = {
     registerUser,
     loginUser,
     getUserProfile,
-    forgotPassword, // Ajouter
-    resetPassword,  // Ajouter
+    forgotPassword,
+    resetPassword,
+    updateUserProfile,
+    updateUserPassword,
 };

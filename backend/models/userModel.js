@@ -29,6 +29,15 @@ const userSchema = mongoose.Schema(
             enum: ['admin', 'chef_projet', 'membre'], // Le rôle ne peut être que l'une de ces valeurs
             default: 'membre', // Valeur par défaut si aucun rôle n'est fourni
         },
+        tel: {
+            type: String,
+            required: false,
+        },
+        telCode: {
+            type: String,
+            required: false,
+            default: '+216',
+        },
         passwordResetToken: String,
         passwordResetExpires: Date,
     },

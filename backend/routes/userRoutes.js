@@ -8,7 +8,9 @@ const {
     loginUser,
     getUserProfile,
     forgotPassword,     
-    resetPassword, 
+    resetPassword,
+    updateUserProfile,
+    updateUserPassword,
 } = require('../controllers/userController');
 
 // Importer le middleware d'authentification que nous créerons à l'étape 7
@@ -28,6 +30,14 @@ router.post('/login', loginUser);
 // GET /api/users/profile
 // On ajoute le middleware "protect" pour sécuriser cette route
 router.get('/profile', protect, getUserProfile);
+
+// Route pour mettre à jour le profil de l'utilisateur connecté
+// PUT /api/users/profile
+router.put('/profile', protect, updateUserProfile);
+
+// Route pour mettre à jour le mot de passe de l'utilisateur connecté
+// PUT /api/users/password
+router.put('/password', protect, updateUserPassword);
 
 // Route pour la demande de réinitialisation de mot de passe
 router.post('/forgotpassword', forgotPassword);
