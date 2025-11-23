@@ -345,39 +345,39 @@ const MeetingDetails = () => {
         </GlassCard>
 
         {/* MEETING HISTORY */}
-        {historique.length > 0 && (
-          <GlassCard className="p-6">
-            <h3 className="text-xl font-bold mb-4" style={{ color: "var(--text-main)" }}>
-              Meeting History
-            </h3>
-            <div className="space-y-3">
-              {historique.slice(0, 5).map((meeting, index) => (
-                <div 
-                  key={index}
-                  className="flex items-center justify-between p-4 rounded-xl"
-                  style={{ background: "var(--box-bg)" }}
-                >
-                  <div className="flex-1">
-                    <p className="font-semibold" style={{ color: "var(--text-main)" }}>
-                      {formatDate(meeting.dateDebut)}
-                    </p>
-                    <p className="text-sm" style={{ color: "var(--sidebar-text)" }}>
-                      {meeting.participants?.length || 0} participants • {formatDuration(meeting.duree)}
-                    </p>
-                  </div>
-                  {meeting.enregistrement?.disponible && (
-                    <span className="text-xs font-semibold px-2 py-1 rounded" style={{ 
-                      background: "rgba(140, 121, 217, 0.2)",
-                      color: "#8C79D9"
-                    }}>
-                      Recorded
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        )}
+{historique.length > 0 && (
+  <GlassCard className="p-6">
+    <h3 className="text-xl font-bold mb-4" style={{ color: "var(--text-main)" }}>
+      Meeting History
+    </h3>
+    <div className="space-y-3">
+      {historique.slice(0, 5).map((meeting, index) => (
+        <div 
+          key={index}
+          className="flex items-center justify-between p-4 rounded-xl"
+          style={{ background: "var(--box-bg)" }}
+        >
+          <div className="flex-1">
+            <p className="font-semibold" style={{ color: "var(--text-main)" }}>
+              {formatDate(meeting.dateDebut)}
+            </p>
+            <p className="text-sm" style={{ color: "var(--sidebar-text)" }}>
+              {meeting.participants?.length || 0} participants • {formatDuration(meeting.duree)}
+            </p>
+          </div>
+          {meeting.enregistrement?.disponible && (
+            <span className="text-xs font-semibold px-2 py-1 rounded" style={{ 
+              background: "rgba(140, 121, 217, 0.2)",
+              color: "#8C79D9"
+            }}>
+              Recorded
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  </GlassCard>
+)}
       </div>
     </div>
   );

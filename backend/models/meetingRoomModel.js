@@ -159,6 +159,20 @@ const meetingRoomSchema = mongoose.Schema(
                     type: Boolean,
                     default: false
                 }
+            }],
+            // NOUVEAU: Track tous les participants qui ont rejoint la réunion
+            tousLesParticipants: [{
+                utilisateur: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'User'
+                },
+                dateConnexion: {
+                    type: Date,
+                    default: Date.now
+                },
+                dateDeconnexion: {
+                    type: Date
+                }
             }]
         },
         
@@ -290,39 +304,79 @@ meetingRoomSchema.methods.ajouterMembre = function(userId, role = 'participant')
 meetingRoomSchema.methods.demarrerReunion = function() {
     this.reunionEnCours.active = true;
     this.reunionEnCours.dateDebut = new Date();
+    this.reunionEnCours.tousLesParticipants = []; // Reset la liste des participants
     this.statistiques.nombreReunions += 1;
 };
 
-// Méthode pour terminer une réunion
+// NOUVEAU: Méthode pour ajouter un participant à la liste complète
+meetingRoomSchema.methods.ajouterParticipantReunion = function(userId) {
+    // Vérifier si l'utilisateur n'est pas déjà dans la liste
+    const dejaPresent = this.reunionEnCours.tousLesParticipants.some(
+        p => p.utilisateur.toString() === userId.toString()
+    );
+    
+    if (!dejaPresent) {
+        this.reunionEnCours.tousLesParticipants.push({
+            utilisateur: userId,
+            dateConnexion: new Date()
+        });
+    }
+};
+
+// NOUVEAU: Méthode pour enregistrer la déconnexion d'un participant
+meetingRoomSchema.methods.retirerParticipantReunion = function(userId) {
+    const participant = this.reunionEnCours.tousLesParticipants.find(
+        p => p.utilisateur.toString() === userId.toString()
+    );
+    
+    if (participant && !participant.dateDeconnexion) {
+        participant.dateDeconnexion = new Date();
+    }
+};
+
+// Méthode pour terminer une réunion - FIXED
 meetingRoomSchema.methods.terminerReunion = function() {
     if (this.reunionEnCours.active) {
         const dateDebut = this.reunionEnCours.dateDebut;
         const dateFin = new Date();
         const duree = Math.round((dateFin - dateDebut) / 60000); // en minutes
         
+        // CORRECTION: Utiliser tousLesParticipants au lieu de participantsActuels
+        const participants = this.reunionEnCours.tousLesParticipants.map(p => {
+            const dateConnexion = p.dateConnexion;
+            const dateDeconnexion = p.dateDeconnexion || dateFin;
+            const dureePresence = Math.round((dateDeconnexion - dateConnexion) / 60000);
+            
+            return {
+                utilisateur: p.utilisateur,
+                dureePresence: dureePresence > 0 ? dureePresence : 1 // Minimum 1 minute
+            };
+        });
+        
         // Ajouter à l'historique
         this.historique.push({
             dateDebut: dateDebut,
             dateFin: dateFin,
-            duree: duree,
-            participants: this.reunionEnCours.participantsActuels.map(p => ({
-                utilisateur: p.utilisateur,
-                dureePresence: duree // Simplification, tous restent toute la durée
-            }))
+            duree: duree > 0 ? duree : 1, // Minimum 1 minute
+            participants: participants
         });
         
         // Mettre à jour les statistiques
         this.statistiques.dureeTotale += duree;
         this.statistiques.derniereReunion = dateFin;
-        if (this.reunionEnCours.participantsActuels.length > this.statistiques.maxParticipants) {
-            this.statistiques.maxParticipants = this.reunionEnCours.participantsActuels.length;
+        
+        // CORRECTION: Utiliser le nombre maximum de participants qui étaient connectés en même temps
+        const maxParticipantsSimultanes = this.reunionEnCours.tousLesParticipants.length;
+        if (maxParticipantsSimultanes > this.statistiques.maxParticipants) {
+            this.statistiques.maxParticipants = maxParticipantsSimultanes;
         }
         
         // Réinitialiser la réunion en cours
         this.reunionEnCours = {
             active: false,
             dateDebut: null,
-            participantsActuels: []
+            participantsActuels: [],
+            tousLesParticipants: []
         };
     }
 };

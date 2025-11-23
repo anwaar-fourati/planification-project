@@ -4,6 +4,7 @@ const sendEmail = require('../utils/email');
 const Task = require('../models/taskModel');
 const Chat = require('../models/chatModel');
 const Message = require('../models/messageModel');
+const MeetingRoom = require('../models/meetingRoomModel');
 const { creerMeetingRoomPourProjet, ajouterMembreMeetingRoom } = require('../controllers/meetingController');
 
 // @desc    Créer un nouveau projet
@@ -329,7 +330,13 @@ const deleteProjet = async (req, res) => {
             return res.status(403).json({ message: 'Seul le créateur peut supprimer le projet' });
         }
 
-        await projet.deleteOne();
+        // CORRECTION: Supprimer la salle de réunion AVANT de supprimer le projet
+        try {
+            const deleted = await MeetingRoom.deleteOne({ projet: projet._id });
+            console.log('✅ Meeting room deleted:', deleted);
+        } catch (meetingError) {
+            console.error('❌ Error deleting meeting room:', meetingError);
+        }
 
         // Supprimer le chat et les messages liés au projet
         try {
@@ -337,15 +344,28 @@ const deleteProjet = async (req, res) => {
             if (chat) {
                 await Message.deleteMany({ chat: chat._id });
                 await Chat.deleteOne({ _id: chat._id });
+                console.log('✅ Chat deleted');
             }
         } catch (chatDelErr) {
-            console.error('Erreur lors de la suppression des chats/messages du projet:', chatDelErr);
+            console.error('❌ Error deleting chat:', chatDelErr);
         }
+
+        // Supprimer toutes les tâches du projet
+        try {
+            await Task.deleteMany({ projet: projet._id });
+            console.log('✅ Tasks deleted');
+        } catch (taskError) {
+            console.error('❌ Error deleting tasks:', taskError);
+        }
+
+        // Supprimer le projet
+        await projet.deleteOne();
+        console.log('✅ Project deleted');
 
         res.status(200).json({ message: 'Projet supprimé avec succès' });
 
     } catch (error) {
-        console.error('Erreur lors de la suppression:', error);
+        console.error('❌ Error deleting project:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
@@ -379,6 +399,16 @@ const quitterProjet = async (req, res) => {
             await Chat.updateOne({ projet: projet._id }, { $pull: { membres: { utilisateur: req.user._id } } });
         } catch (chatErr) {
             console.error('Erreur lors du retrait du membre du chat:', chatErr);
+        }
+
+        // Retirer l'utilisateur de la salle de réunion
+        try {
+            await MeetingRoom.updateOne(
+                { projet: projet._id },
+                { $pull: { membres: { utilisateur: req.user._id } } }
+            );
+        } catch (meetingErr) {
+            console.error('Erreur lors du retrait de la salle:', meetingErr);
         }
 
         res.status(200).json({ message: 'Vous avez quitté le projet avec succès' });
@@ -433,6 +463,16 @@ const retirerMembre = async (req, res) => {
             await Chat.updateOne({ projet: projet._id }, { $pull: { membres: { utilisateur: membreId } } });
         } catch (chatErr) {
             console.error('Erreur lors du retrait du membre du chat:', chatErr);
+        }
+
+        // Retirer le membre de la salle de réunion
+        try {
+            await MeetingRoom.updateOne(
+                { projet: projet._id },
+                { $pull: { membres: { utilisateur: membreId } } }
+            );
+        } catch (meetingErr) {
+            console.error('Erreur lors du retrait de la salle:', meetingErr);
         }
 
         res.status(200).json({ message: 'Membre retiré avec succès' });

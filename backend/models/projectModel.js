@@ -80,11 +80,7 @@ const projectSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Task'
         }],
-
-      
-    
     },
-    
     {
         timestamps: true
     }
@@ -112,41 +108,37 @@ projectSchema.methods.estCreateur = function(userId) {
     return this.createur.toString() === userId.toString();
 };
 
-const Project = mongoose.model('Project', projectSchema);
-// AJOUTEZ CE MIDDLEWARE À LA FIN DE VOTRE FICHIER projectModel.js
-// Middleware pour créer automatiquement une salle de réunion
-projectSchema.post('save', async function(doc, next) {
+// Middleware pour supprimer les ressources associées quand le projet est supprimé
+projectSchema.pre('deleteOne', { document: true, query: false }, async function(next) {
     try {
-        // Éviter la double exécution
-        if (doc.__meetingRoomCreated) return next();
-        
         const MeetingRoom = require('./meetingRoomModel');
-        const meetingRoomExists = await MeetingRoom.findOne({ projet: doc._id });
-        
-        if (!meetingRoomExists) {
-            const { creerMeetingRoomPourProjet } = require('../controllers/meetingController');
-            await creerMeetingRoomPourProjet(doc._id, doc.createur, doc.nom);
-            // Marquer pour éviter la double exécution
-            doc.__meetingRoomCreated = true;
+        const Chat = require('./chatModel');
+        const Message = require('./messageModel');
+        const Task = require('./taskModel');
+
+        // Supprimer la salle de réunion
+        await MeetingRoom.deleteOne({ projet: this._id });
+        console.log('✅ Salle de réunion supprimée pour le projet:', this._id);
+
+        // Supprimer le chat et les messages
+        const chat = await Chat.findOne({ projet: this._id });
+        if (chat) {
+            await Message.deleteMany({ chat: chat._id });
+            await Chat.deleteOne({ _id: chat._id });
+            console.log('✅ Chat et messages supprimés');
         }
+
+        // Supprimer les tâches
+        await Task.deleteMany({ projet: this._id });
+        console.log('✅ Tâches supprimées');
+
+        next();
     } catch (error) {
-        console.error('❌ Erreur création salle réunion:', error);
-        // Ne pas bloquer la création du projet si la salle échoue
+        console.error('❌ Erreur lors de la suppression des ressources:', error);
+        next(error);
     }
-    next();
 });
 
-// Middleware pour supprimer la salle de réunion quand le projet est supprimé
-projectSchema.post('findOneAndDelete', async function(doc) {
-    if (doc) {
-        try {
-            const MeetingRoom = require('./meetingRoomModel');
-            await MeetingRoom.findOneAndDelete({ projet: doc._id });
-            console.log('✅ Salle de réunion supprimée pour le projet:', doc._id);
-        } catch (error) {
-            console.error('❌ Erreur suppression salle réunion:', error);
-        }
-    }
-});
+const Project = mongoose.model('Project', projectSchema);
 
 module.exports = Project;

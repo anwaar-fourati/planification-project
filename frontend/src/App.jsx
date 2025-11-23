@@ -167,6 +167,7 @@ function App() {
               </ProtectedRoute>
             } 
           />
+
           <Route 
             path="/meetings/:roomId/room" 
             element={

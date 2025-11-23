@@ -1,29 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  getSalleReunion, 
-  quitterReunion, 
-  terminerReunion, 
-  envoyerMessage, 
-  getMessages 
-} from '../services/meetingService';
+import { getSalleReunion, quitterReunion, terminerReunion } from '../services/meetingService';
+import io from 'socket.io-client';
 import {
+  ArrowLeftIcon,
   PhoneXMarkIcon,
-  VideoCameraIcon,
-  VideoCameraSlashIcon,
   MicrophoneIcon,
-  ComputerDesktopIcon,
+  VideoCameraIcon,
   ChatBubbleLeftRightIcon,
   UserGroupIcon,
-  Cog6ToothIcon,
-  XMarkIcon,
   PaperAirplaneIcon,
-  EllipsisVerticalIcon
+  XMarkIcon
 } from '@heroicons/react/24/outline';
-
-// REMPLACEZ MicrophoneSlashIcon par ces alternatives :
-import { MicrophoneIcon as MicrophoneSolid } from '@heroicons/react/24/solid';
-import { MicrophoneIcon as MicrophoneOutline } from '@heroicons/react/24/outline';
 
 const GlassCard = ({ children, className = "" }) => {
   return (
@@ -40,530 +28,657 @@ const MeetingRoom = () => {
   const [salle, setSalle] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [showChat, setShowChat] = useState(true);
+  const [showParticipants, setShowParticipants] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [microEnabled, setMicroEnabled] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [participants, setParticipants] = useState([]);
   
-  // États pour les contrôles utilisateur
-  const [microActive, setMicroActive] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [partageEcran, setPartageEcran] = useState(false);
-  const [chatOuvert, setChatOuvert] = useState(false);
-  const [participantsOuvert, setParticipantsOuvert] = useState(false);
-  const [parametresOuvert, setParametresOuvert] = useState(false);
+  // Refs
+  const socketRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const peerConnectionsRef = useRef({});
+  const remoteStreamsRef = useRef({});
+  const messagesEndRef = useRef(null);
+  
+  const currentUser = JSON.parse(localStorage.getItem('user'));
+  const API_URL = 'http://localhost:5000';
 
-  const videoRef = useRef(null);
-  const chatContainerRef = useRef(null);
-  const streamRef = useRef(null);
+  // Configuration ICE servers (STUN/TURN)
+  const iceServers = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  };
 
   useEffect(() => {
-    if (roomId) {
-      fetchSalle();
-      fetchMessages();
-      
-      // Simuler la connexion WebRTC (à remplacer par une vraie implémentation)
-      initializeMedia();
-      
-      // Rafraîchir périodiquement
-      const interval = setInterval(fetchSalle, 5000);
-      return () => clearInterval(interval);
-    }
+    initializeSocket();
+    fetchRoomDetails();
+    
+    return () => {
+      cleanup();
+    };
   }, [roomId]);
 
   useEffect(() => {
-    // Scroll vers le bas du chat quand de nouveaux messages arrivent
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
+    scrollToBottom();
   }, [messages]);
 
-  const fetchSalle = async () => {
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const initializeSocket = () => {
+    const token = currentUser?.token;
+    if (!token) return;
+
+    socketRef.current = io(API_URL, {
+      auth: { token }
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('✅ Socket connected');
+      socketRef.current.emit('join-meeting', { roomId });
+    });
+
+    socketRef.current.on('current-participants', ({ participantIds }) => {
+      console.log('👥 Current participants:', participantIds);
+    });
+
+    socketRef.current.on('user-joined', ({ userId, userInfo }) => {
+      console.log('👤 User joined:', userInfo);
+      addParticipant(userId, userInfo);
+    });
+
+    socketRef.current.on('user-left', ({ userId }) => {
+      console.log('👋 User left:', userId);
+      removeParticipant(userId);
+    });
+
+    socketRef.current.on('new-message', (messageData) => {
+      console.log('💬 New message:', messageData);
+      setMessages(prev => [...prev, messageData]);
+    });
+
+    socketRef.current.on('user-media-updated', ({ userId, micro, camera }) => {
+      console.log('📹 Media updated:', userId, micro, camera);
+      setParticipants(prev => prev.map(p => 
+        p.userId === userId ? { ...p, micro, camera } : p
+      ));
+    });
+
+    socketRef.current.on('webrtc-offer', async ({ offer, fromUserId, fromUserInfo }) => {
+      console.log('📞 Received offer from:', fromUserInfo);
+      await handleWebRTCOffer(offer, fromUserId, fromUserInfo);
+    });
+
+    socketRef.current.on('webrtc-answer', async ({ answer, fromUserId }) => {
+      console.log('📞 Received answer from:', fromUserId);
+      const peerConnection = peerConnectionsRef.current[fromUserId];
+      if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    });
+
+    socketRef.current.on('webrtc-ice-candidate', async ({ candidate, fromUserId }) => {
+      const peerConnection = peerConnectionsRef.current[fromUserId];
+      if (peerConnection && candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
+  };
+
+  const fetchRoomDetails = async () => {
     try {
       const data = await getSalleReunion(roomId);
       setSalle(data);
+      
+      if (data.reunionEnCours?.participantsActuels) {
+        const initialParticipants = data.reunionEnCours.participantsActuels.map(p => ({
+          userId: p.utilisateur._id,
+          userInfo: p.utilisateur,
+          micro: p.micro,
+          camera: p.camera,
+          stream: null
+        }));
+        setParticipants(initialParticipants);
+      }
+      
+      await startLocalMedia();
     } catch (err) {
       console.error('Erreur:', err);
       setError(err.message);
     }
   };
 
-  const fetchMessages = async () => {
+  const startLocalMedia = async () => {
     try {
-      const data = await getMessages(roomId);
-      setMessages(data.messages || []);
-    } catch (err) {
-      console.error('Erreur messages:', err);
-    }
-  };
-
-  const initializeMedia = async () => {
-    try {
-      // Demander l'accès à la caméra et au micro
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
       });
-      
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
       }
-      
-      // Activer le micro et la caméra par défaut selon les paramètres
-      setMicroActive(true);
-      setCameraActive(true);
-      
+
+      stream.getAudioTracks().forEach(track => track.enabled = false);
+      stream.getVideoTracks().forEach(track => track.enabled = false);
+
+      addParticipant(currentUser._id, {
+        _id: currentUser._id,
+        nom: currentUser.nom,
+        prenom: currentUser.prenom
+      }, stream);
+
     } catch (err) {
-      console.error('Erreur accès média:', err);
-      alert('Impossible d\'accéder à la caméra ou au microphone');
+      console.error('Error accessing media devices:', err);
+      alert('Unable to access camera/microphone. Please check permissions.');
     }
   };
 
-  const toggleMicro = () => {
-    if (streamRef.current) {
-      const audioTracks = streamRef.current.getAudioTracks();
-      audioTracks.forEach(track => {
-        track.enabled = !microActive;
+  const addParticipant = (userId, userInfo, stream = null) => {
+    setParticipants(prev => {
+      const exists = prev.find(p => p.userId === userId);
+      if (exists) return prev;
+      
+      return [...prev, {
+        userId,
+        userInfo,
+        micro: false,
+        camera: false,
+        stream
+      }];
+    });
+
+    if (userId !== currentUser._id && localStreamRef.current) {
+      createPeerConnection(userId, userInfo);
+    }
+  };
+
+  const removeParticipant = (userId) => {
+    if (peerConnectionsRef.current[userId]) {
+      peerConnectionsRef.current[userId].close();
+      delete peerConnectionsRef.current[userId];
+    }
+
+    setParticipants(prev => prev.filter(p => p.userId !== userId));
+
+    if (remoteStreamsRef.current[userId]) {
+      delete remoteStreamsRef.current[userId];
+    }
+  };
+
+  const createPeerConnection = async (userId, userInfo) => {
+    try {
+      const peerConnection = new RTCPeerConnection(iceServers);
+      peerConnectionsRef.current[userId] = peerConnection;
+
+      localStreamRef.current.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStreamRef.current);
       });
-      setMicroActive(!microActive);
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketRef.current.emit('webrtc-ice-candidate', {
+            roomId,
+            candidate: event.candidate,
+            targetUserId: userId
+          });
+        }
+      };
+
+      peerConnection.ontrack = (event) => {
+        console.log('📹 Received remote track from:', userId);
+        const [remoteStream] = event.streams;
+        remoteStreamsRef.current[userId] = remoteStream;
+        
+        setParticipants(prev => prev.map(p => 
+          p.userId === userId ? { ...p, stream: remoteStream } : p
+        ));
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      socketRef.current.emit('webrtc-offer', {
+        roomId,
+        offer,
+        targetUserId: userId
+      });
+
+    } catch (err) {
+      console.error('Error creating peer connection:', err);
+    }
+  };
+
+  const handleWebRTCOffer = async (offer, fromUserId, fromUserInfo) => {
+    try {
+      const peerConnection = new RTCPeerConnection(iceServers);
+      peerConnectionsRef.current[fromUserId] = peerConnection;
+
+      localStreamRef.current.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStreamRef.current);
+      });
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketRef.current.emit('webrtc-ice-candidate', {
+            roomId,
+            candidate: event.candidate,
+            targetUserId: fromUserId
+          });
+        }
+      };
+
+      peerConnection.ontrack = (event) => {
+        console.log('📹 Received remote track from:', fromUserId);
+        const [remoteStream] = event.streams;
+        remoteStreamsRef.current[fromUserId] = remoteStream;
+        
+        setParticipants(prev => prev.map(p => 
+          p.userId === fromUserId ? { ...p, stream: remoteStream } : p
+        ));
+      };
+
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+
+      socketRef.current.emit('webrtc-answer', {
+        roomId,
+        answer,
+        targetUserId: fromUserId
+      });
+
+      addParticipant(fromUserId, fromUserInfo);
+
+    } catch (err) {
+      console.error('Error handling offer:', err);
+    }
+  };
+
+  const toggleMicrophone = () => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        const newMicState = audioTrack.enabled;
+        setMicroEnabled(newMicState);
+        
+        // Update local participant state
+        setParticipants(prev => prev.map(p => 
+          p.userId === currentUser._id ? { ...p, micro: newMicState } : p
+        ));
+        
+        socketRef.current.emit('update-media-state', {
+          roomId,
+          micro: newMicState,
+          camera: cameraEnabled
+        });
+      }
     }
   };
 
   const toggleCamera = () => {
-    if (streamRef.current) {
-      const videoTracks = streamRef.current.getVideoTracks();
-      videoTracks.forEach(track => {
-        track.enabled = !cameraActive;
-      });
-      setCameraActive(!cameraActive);
-    }
-  };
-
-  const togglePartageEcran = async () => {
-    try {
-      if (!partageEcran) {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-          video: true,
-          audio: true 
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        const newCameraState = videoTrack.enabled;
+        setCameraEnabled(newCameraState);
+        
+        // Update local participant state
+        setParticipants(prev => prev.map(p => 
+          p.userId === currentUser._id ? { ...p, camera: newCameraState } : p
+        ));
+        
+        socketRef.current.emit('update-media-state', {
+          roomId,
+          micro: microEnabled,
+          camera: newCameraState
         });
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = screenStream;
-        }
-        
-        screenStream.getTracks().forEach(track => {
-          track.onended = () => {
-            setPartageEcran(false);
-            if (streamRef.current && videoRef.current) {
-              videoRef.current.srcObject = streamRef.current;
-            }
-          };
-        });
-        
-        setPartageEcran(true);
-      } else {
-        if (streamRef.current && videoRef.current) {
-          videoRef.current.srcObject = streamRef.current;
-        }
-        setPartageEcran(false);
       }
-    } catch (err) {
-      console.error('Erreur partage écran:', err);
     }
   };
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-
-    try {
-      await envoyerMessage(roomId, newMessage);
-      setNewMessage('');
-      // Rafraîchir les messages après envoi
-      setTimeout(fetchMessages, 500);
-    } catch (err) {
-      console.error('Erreur envoi message:', err);
-      alert('Erreur lors de l\'envoi du message');
-    }
+    
+    socketRef.current.emit('send-message', {
+      roomId,
+      message: newMessage.trim()
+    });
+    
+    setNewMessage('');
   };
 
-  const handleLeaveMeeting = async () => {
-    try {
-      await quitterReunion(roomId);
-      
-      // Arrêter tous les streams média
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      navigate('/meetings');
-    } catch (err) {
-      console.error('Erreur:', err);
-      alert(err.message);
-    }
-  };
-
-  const handleEndMeeting = async () => {
-    if (window.confirm('Êtes-vous sûr de vouloir terminer la réunion pour tous les participants ?')) {
+  const handleLeave = async () => {
+    if (window.confirm('Are you sure you want to leave this meeting?')) {
+      setLoading(true);
       try {
-        await terminerReunion(roomId);
-        
-        // Arrêter tous les streams média
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-        }
-        
+        await quitterReunion(roomId);
+        cleanup();
         navigate('/meetings');
       } catch (err) {
         console.error('Erreur:', err);
         alert(err.message);
+      } finally {
+        setLoading(false);
       }
     }
   };
 
-  const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+
+  const cleanup = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+    }
+
+    Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+    peerConnectionsRef.current = {};
+
+    if (socketRef.current) {
+      socketRef.current.emit('leave-meeting', { roomId });
+      socketRef.current.disconnect();
+    }
   };
 
-  if (!salle) {
+  const VideoParticipant = ({ participant }) => {
+    const videoRef = useRef(null);
+    const isLocalUser = participant.userId === currentUser._id;
+
+    useEffect(() => {
+      if (videoRef.current && participant.stream) {
+        videoRef.current.srcObject = participant.stream;
+      }
+    }, [participant.stream]);
+
     return (
-      <div className="w-full min-h-screen flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
-        <p style={{ color: "var(--sidebar-text)" }}>Chargement de la réunion...</p>
+      <GlassCard className="relative overflow-hidden aspect-video">
+        <video
+          ref={isLocalUser ? localVideoRef : videoRef}
+          autoPlay
+          playsInline
+          muted={isLocalUser}
+          className="w-full h-full object-cover"
+        />
+        
+        {!participant.camera && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
+            <div className="text-center">
+              <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-3xl mb-4">
+                {participant.userInfo?.prenom?.[0]}{participant.userInfo?.nom?.[0]}
+              </div>
+              <p className="text-white font-semibold text-lg">
+                {participant.userInfo?.prenom} {participant.userInfo?.nom}
+                {isLocalUser && ' (You)'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="absolute bottom-4 left-4 flex gap-2">
+          <span className={`p-2 rounded-lg ${participant.micro ? 'bg-green-500' : 'bg-red-500'}`}>
+            <MicrophoneIcon className="w-4 h-4 text-white" />
+          </span>
+          <span className={`p-2 rounded-lg ${participant.camera ? 'bg-green-500' : 'bg-red-500'}`}>
+            <VideoCameraIcon className="w-4 h-4 text-white" />
+          </span>
+        </div>
+
+        <div className="absolute top-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
+          <p className="text-white text-sm font-semibold">
+            {participant.userInfo?.prenom} {participant.userInfo?.nom}
+            {isLocalUser && ' (You)'}
+          </p>
+        </div>
+      </GlassCard>
+    );
+  };
+
+  if (error && !salle) {
+    return (
+      <div className="w-full min-h-screen p-6 flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
+        <GlassCard className="p-8 text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => navigate('/meetings')}
+            className="px-6 py-2 rounded-xl text-white"
+            style={{ background: "linear-gradient(135deg, #8C79D9 0%, #A78BFA 100%)" }}
+          >
+            Back to Meetings
+          </button>
+        </GlassCard>
       </div>
     );
   }
 
-  const currentUser = JSON.parse(localStorage.getItem('user'));
+  if (!salle) {
+    return (
+      <div className="w-full min-h-screen p-6 flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
+        <p style={{ color: "var(--sidebar-text)" }}>Loading meeting room...</p>
+      </div>
+    );
+  }
+
   const isHost = salle.createur._id === currentUser._id;
 
   return (
-    <div className="w-full h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
-      
-      {/* HEADER */}
-      <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--border-color)" }}>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/meetings')}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            style={{ color: "var(--sidebar-text)" }}
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-          
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: "var(--text-main)" }}>
-              {salle.nom}
-            </h1>
-            <p className="text-sm" style={{ color: "var(--sidebar-text)" }}>
-              Code: {salle.codeAcces} • {salle.reunionEnCours.participantsActuels?.length || 0} participants
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-semibold text-green-700 dark:text-green-400">En direct</span>
-          </div>
-          
-          {isHost && (
+    <div className="w-full min-h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700" style={{ background: "var(--box-bg)" }}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <button
-              onClick={handleEndMeeting}
-              className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all duration-300"
-              style={{ background: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)" }}
+              onClick={() => navigate('/meetings')}
+              className="p-2 rounded-lg transition-colors"
+              style={{ 
+                background: "var(--box-bg)",
+                color: "var(--sidebar-text)"
+              }}
             >
-              Terminer
+              <ArrowLeftIcon className="w-5 h-5" />
             </button>
-          )}
-        </div>
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex">
-        
-        {/* VIDEO AREA */}
-        <div className="flex-1 flex flex-col p-4">
-          
-          {/* MAIN VIDEO */}
-          <div className="flex-1 relative rounded-2xl overflow-hidden bg-black mb-4">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
             
-            {/* User info overlay */}
-            <div className="absolute bottom-4 left-4 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold bg-purple-600">
-                {currentUser.prenom?.[0]}{currentUser.nom?.[0]}
-              </div>
-              <div>
-                <p className="text-white font-semibold">
-                  {currentUser.prenom} {currentUser.nom} {isHost && '(Hôte)'}
-                </p>
-                <div className="flex items-center gap-2 text-white/80 text-sm">
-                  <span>{microActive ? '🎤' : '🔇'}</span>
-                  <span>{cameraActive ? '📹' : '🚫'}</span>
-                  {partageEcran && <span>🖥️</span>}
-                </div>
-              </div>
+            <div>
+              <h1 className="text-xl font-bold" style={{ color: "var(--text-main)" }}>
+                {salle.nom}
+              </h1>
+              <p className="text-sm" style={{ color: "var(--sidebar-text)" }}>
+                {participants.length} participant{participants.length > 1 ? 's' : ''}
+              </p>
             </div>
           </div>
 
-          {/* PARTICIPANTS GRID */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
-            {salle.reunionEnCours.participantsActuels
-              ?.filter(p => p.utilisateur._id !== currentUser._id)
-              .map((participant) => (
-              <div key={participant._id} className="relative rounded-xl overflow-hidden bg-gray-800 aspect-video">
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold bg-purple-600">
-                    {participant.utilisateur.prenom?.[0]}{participant.utilisateur.nom?.[0]}
-                  </div>
-                </div>
-                
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2">
-                  <p className="text-white text-sm font-semibold truncate">
-                    {participant.utilisateur.prenom} {participant.utilisateur.nom}
-                  </p>
-                  <div className="flex items-center gap-1 text-white/80 text-xs">
-                    <span>{participant.micro ? '🎤' : '🔇'}</span>
-                    <span>{participant.camera ? '📹' : '🚫'}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* CONTROLS */}
-          <div className="flex justify-center items-center gap-4 p-4">
-            {/* Micro Control */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={toggleMicro}
-              className={`p-4 rounded-full transition-all duration-300 ${
-                microActive 
-                  ? 'bg-green-500 hover:bg-green-600 text-white' 
-                  : 'bg-red-500 hover:bg-red-600 text-white'
-              }`}
-            >
-              {microActive ? (
-                <MicrophoneIcon className="w-6 h-6" />
-              ) : (
-                <MicrophoneIcon className="w-6 h-6" />
-                // Alternative: utiliser une icône barrée ou changer la couleur
-              )}
-            </button>
-
-            {/* Camera Control */}
-            <button
-              onClick={toggleCamera}
-              className={`p-4 rounded-full transition-all duration-300 ${
-                cameraActive 
-                  ? 'bg-green-500 hover:bg-green-600 text-white' 
-                  : 'bg-red-500 hover:bg-red-600 text-white'
-              }`}
-            >
-              {cameraActive ? (
-                <VideoCameraIcon className="w-6 h-6" />
-              ) : (
-                <VideoCameraSlashIcon className="w-6 h-6" />
-              )}
-            </button>
-
-            {/* Leave Call */}
-            <button
-              onClick={handleLeaveMeeting}
-              className="p-4 rounded-full bg-red-500 hover:bg-red-600 text-white transition-all duration-300"
-            >
-              <PhoneXMarkIcon className="w-6 h-6" />
-            </button>
-
-            {/* Screen Share */}
-            <button
-              onClick={togglePartageEcran}
-              className={`p-4 rounded-full transition-all duration-300 ${
-                partageEcran 
-                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                  : 'bg-gray-500 hover:bg-gray-600 text-white'
-              }`}
-            >
-              <ComputerDesktopIcon className="w-6 h-6" />
-            </button>
-
-            {/* Participants */}
-            <button
-              onClick={() => setParticipantsOuvert(!participantsOuvert)}
-              className={`p-4 rounded-full transition-all duration-300 ${
-                participantsOuvert 
-                  ? 'bg-purple-500 hover:bg-purple-600 text-white' 
-                  : 'bg-gray-500 hover:bg-gray-600 text-white'
-              }`}
+              onClick={() => setShowParticipants(!showParticipants)}
+              className="p-3 rounded-xl transition-all duration-300"
+              style={{ 
+                background: showParticipants ? "rgba(140, 121, 217, 0.2)" : "var(--box-bg)",
+                color: showParticipants ? "#8C79D9" : "var(--sidebar-icon)"
+              }}
             >
               <UserGroupIcon className="w-6 h-6" />
             </button>
 
-            {/* Chat */}
             <button
-              onClick={() => setChatOuvert(!chatOuvert)}
-              className={`p-4 rounded-full transition-all duration-300 ${
-                chatOuvert 
-                  ? 'bg-purple-500 hover:bg-purple-600 text-white' 
-                  : 'bg-gray-500 hover:bg-gray-600 text-white'
-              }`}
+              onClick={() => setShowChat(!showChat)}
+              className="p-3 rounded-xl transition-all duration-300"
+              style={{ 
+                background: showChat ? "rgba(140, 121, 217, 0.2)" : "var(--box-bg)",
+                color: showChat ? "#8C79D9" : "var(--sidebar-icon)"
+              }}
             >
               <ChatBubbleLeftRightIcon className="w-6 h-6" />
             </button>
 
-            {/* Settings */}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Video Grid */}
+        <div className="flex-1 p-6 flex flex-col">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto">
+            {participants.map((participant) => (
+              <VideoParticipant key={participant.userId} participant={participant} />
+            ))}
+          </div>
+
+          {/* Controls */}
+          <div className="mt-6 flex justify-center gap-4">
             <button
-              onClick={() => setParametresOuvert(!parametresOuvert)}
-              className="p-4 rounded-full bg-gray-500 hover:bg-gray-600 text-white transition-all duration-300"
+              onClick={toggleMicrophone}
+              className={`p-4 rounded-full transition-all duration-300 shadow-lg ${
+                microEnabled 
+                  ? 'bg-green-600 hover:bg-green-700 text-white' 
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              }`}
+              title={microEnabled ? 'Mute' : 'Unmute'}
             >
-              <Cog6ToothIcon className="w-6 h-6" />
+              <MicrophoneIcon className="w-6 h-6" />
+            </button>
+            
+            <button
+              onClick={toggleCamera}
+              className={`p-4 rounded-full transition-all duration-300 shadow-lg ${
+                cameraEnabled 
+                  ? 'bg-green-600 hover:bg-green-700 text-white' 
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              }`}
+              title={cameraEnabled ? 'Stop Video' : 'Start Video'}
+            >
+              <VideoCameraIcon className="w-6 h-6" />
+            </button>
+
+            <button
+              onClick={handleLeave}
+              disabled={loading}
+              className="p-4 rounded-full transition-all duration-300 shadow-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+              title="Leave Meeting"
+            >
+              <PhoneXMarkIcon className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        {/* SIDEBAR - CHAT & PARTICIPANTS */}
-        {(chatOuvert || participantsOuvert) && (
-          <div className="w-80 border-l" style={{ borderColor: "var(--border-color)" }}>
+        {/* Participants Sidebar */}
+        {showParticipants && (
+          <div className="w-80 border-l border-gray-200 dark:border-gray-700 flex flex-col" style={{ background: "var(--box-bg)" }}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="font-semibold" style={{ color: "var(--text-main)" }}>
+                Participants ({participants.length})
+              </h3>
+              <button onClick={() => setShowParticipants(false)}>
+                <XMarkIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />
+              </button>
+            </div>
             
-            {/* CHAT SIDEBAR */}
-            {chatOuvert && (
-              <div className="h-full flex flex-col">
-                {/* Chat Header */}
-                <div className="p-4 border-b" style={{ borderColor: "var(--border-color)" }}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold" style={{ color: "var(--text-main)" }}>Chat</h3>
-                    <button
-                      onClick={() => setChatOuvert(false)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      <XMarkIcon className="w-4 h-4" style={{ color: "var(--sidebar-text)" }} />
-                    </button>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {participants.map((participant) => (
+                <div key={participant.userId} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "var(--page-bg)" }}>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                    {participant.userInfo?.prenom?.[0]}{participant.userInfo?.nom?.[0]}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm" style={{ color: "var(--text-main)" }}>
+                      {participant.userInfo?.prenom} {participant.userInfo?.nom}
+                      {participant.userId === currentUser._id && ' (You)'}
+                    </p>
+                    <div className="flex gap-1 mt-1">
+                      <span className="text-xs">{participant.micro ? '🎤' : '🔇'}</span>
+                      <span className="text-xs">{participant.camera ? '📹' : '🚫'}</span>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-                {/* Messages */}
-                <div 
-                  ref={chatContainerRef}
-                  className="flex-1 p-4 space-y-4 overflow-y-auto"
-                  style={{ maxHeight: 'calc(100vh - 200px)' }}
-                >
-                  {messages.length === 0 ? (
-                    <p className="text-center text-gray-500">Aucun message pour le moment</p>
-                  ) : (
-                    messages.map((message) => (
-                      <div key={message._id} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold bg-purple-600 flex-shrink-0">
-                          {message.expediteur.prenom?.[0]}{message.expediteur.nom?.[0]}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-sm" style={{ color: "var(--text-main)" }}>
-                              {message.expediteur.prenom} {message.expediteur.nom}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {formatTime(message.dateEnvoi)}
-                            </span>
-                          </div>
-                          <p className="text-sm" style={{ color: "var(--sidebar-text)" }}>
-                            {message.contenu}
-                          </p>
-                        </div>
+        {/* Chat Sidebar */}
+        {showChat && (
+          <div className="w-80 border-l border-gray-200 dark:border-gray-700 flex flex-col" style={{ background: "var(--box-bg)" }}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="font-semibold" style={{ color: "var(--text-main)" }}>Chat</h3>
+              <button onClick={() => setShowChat(false)}>
+                <XMarkIcon className="w-5 h-5" style={{ color: "var(--sidebar-icon)" }} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.length === 0 ? (
+                <div className="text-center py-8">
+                  <ChatBubbleLeftRightIcon className="w-12 h-12 mx-auto mb-2 opacity-30" style={{ color: "var(--sidebar-icon)" }} />
+                  <p className="text-sm" style={{ color: "var(--sidebar-text)" }}>
+                    No messages yet. Start the conversation!
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {messages.map((msg, index) => (
+                    <div key={msg._id || index} className={`flex gap-2 ${msg.expediteur._id === currentUser._id ? 'flex-row-reverse' : ''}`}>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                        {msg.expediteur?.prenom?.[0]}{msg.expediteur?.nom?.[0]}
                       </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Message Input */}
-                <form onSubmit={handleSendMessage} className="p-4 border-t" style={{ borderColor: "var(--border-color)" }}>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Tapez votre message..."
-                      className="flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      style={{ 
-                        background: "var(--box-bg)",
-                        borderColor: "var(--border-color)",
-                        color: "var(--text-main)"
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newMessage.trim()}
-                      className="px-4 py-2 rounded-lg text-white font-semibold transition-all duration-300 disabled:opacity-50"
-                      style={{ background: "linear-gradient(135deg, #8C79D9 0%, #A78BFA 100%)" }}
-                    >
-                      <PaperAirplaneIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* PARTICIPANTS SIDEBAR */}
-            {participantsOuvert && (
-              <div className="h-full flex flex-col">
-                {/* Participants Header */}
-                <div className="p-4 border-b" style={{ borderColor: "var(--border-color)" }}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold" style={{ color: "var(--text-main)" }}>
-                      Participants ({salle.reunionEnCours.participantsActuels?.length || 0})
-                    </h3>
-                    <button
-                      onClick={() => setParticipantsOuvert(false)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      <XMarkIcon className="w-4 h-4" style={{ color: "var(--sidebar-text)" }} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Participants List */}
-                <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-                  {salle.reunionEnCours.participantsActuels?.map((participant) => (
-                    <div key={participant._id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "var(--box-bg)" }}>
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold bg-purple-600">
-                        {participant.utilisateur.prenom?.[0]}{participant.utilisateur.nom?.[0]}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm" style={{ color: "var(--text-main)" }}>
-                          {participant.utilisateur.prenom} {participant.utilisateur.nom}
-                          {participant.utilisateur._id === salle.createur._id && ' (Hôte)'}
+                      <div className={`flex-1 ${msg.expediteur._id === currentUser._id ? 'text-right' : ''}`}>
+                        <p className="text-xs font-semibold mb-1" style={{ color: "var(--sidebar-text)" }}>
+                          {msg.expediteur?.prenom} {msg.expediteur?.nom}
                         </p>
-                        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--sidebar-text)" }}>
-                          <span>{participant.micro ? '🎤' : '🔇'}</span>
-                          <span>{participant.camera ? '📹' : '🚫'}</span>
-                          <span className={`w-2 h-2 rounded-full ${
-                            participant.statut === 'online' ? 'bg-green-500' : 'bg-gray-400'
-                          }`}></span>
+                        <div className={`inline-block p-2 rounded-lg max-w-xs break-words ${
+                          msg.expediteur._id === currentUser._id 
+                            ? 'bg-purple-600 text-white' 
+                            : 'bg-gray-200 dark:bg-gray-700'
+                        }`}>
+                          <p className="text-sm">
+                            {msg.contenu}
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
-                </div>
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage(e);
+                    }
+                  }}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  style={{ background: "var(--page-bg)", color: "var(--text-main)" }}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim()}
+                  className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <PaperAirplaneIcon className="w-5 h-5" />
+                </button>
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>
-
-      {/* ERROR MESSAGE */}
-      {error && (
-        <div className="fixed top-4 right-4 z-50">
-          <GlassCard className="p-4 border-red-300">
-            <p className="text-red-600">{error}</p>
-          </GlassCard>
-        </div>
-      )}
     </div>
   );
 };

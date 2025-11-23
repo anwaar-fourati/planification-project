@@ -2,9 +2,17 @@ const MeetingRoom = require('../models/meetingRoomModel');
 const Project = require('../models/projectModel');
 
 // @desc    Créer automatiquement une salle de réunion pour un projet
-// @note    Cette fonction est appelée automatiquement lors de la création d'un projet
 const creerMeetingRoomPourProjet = async (projectId, userId, projectName) => {
     try {
+        console.log('📷 Creating meeting room for project:', projectId, 'by user:', userId);
+
+        // Check if meeting room already exists
+        const existingRoom = await MeetingRoom.findOne({ projet: projectId });
+        if (existingRoom) {
+            console.log('⚠️ Meeting room already exists:', existingRoom._id);
+            return existingRoom;
+        }
+
         // Générer un code d'accès unique
         let codeAcces;
         let codeExiste = true;
@@ -26,37 +34,58 @@ const creerMeetingRoomPourProjet = async (projectId, userId, projectName) => {
             createur: userId,
             membres: [{
                 utilisateur: userId,
-                role: 'host', // Le créateur du projet est l'hôte
-                statut: 'offline'
+                role: 'host',
+                statut: 'offline',
+                dateAjout: new Date()
             }]
         });
 
+        console.log('✅ Meeting room created successfully:', meetingRoom._id);
         return meetingRoom;
     } catch (error) {
-        console.error('Erreur lors de la création de la salle de réunion:', error);
+        console.error('❌ Error creating meeting room:', error);
         throw error;
     }
 };
 
-// @desc    Ajouter un membre à la salle de réunion lors de l'ajout au projet
-// @note    Cette fonction est appelée automatiquement lors de l'ajout d'un membre au projet
+// @desc    Ajouter un membre à la salle de réunion
 const ajouterMembreMeetingRoom = async (projectId, userId) => {
     try {
+        console.log('📷 Adding member to meeting room. Project:', projectId, 'User:', userId);
+
         const meetingRoom = await MeetingRoom.findOne({ projet: projectId });
         
         if (!meetingRoom) {
+            console.error('❌ Meeting room not found for project:', projectId);
+            // Try to create it if it doesn't exist
+            const project = await Project.findById(projectId);
+            if (project) {
+                return await creerMeetingRoomPourProjet(projectId, userId, project.nom);
+            }
             throw new Error('Salle de réunion non trouvée pour ce projet');
         }
 
-        // Ajouter le membre s'il n'existe pas déjà
-        if (!meetingRoom.estMembre(userId)) {
-            meetingRoom.ajouterMembre(userId, 'participant');
+        // Check if user is already a member
+        const isMember = meetingRoom.membres.some(
+            m => m.utilisateur.toString() === userId.toString()
+        );
+
+        if (!isMember) {
+            meetingRoom.membres.push({
+                utilisateur: userId,
+                role: 'participant',
+                statut: 'offline',
+                dateAjout: new Date()
+            });
             await meetingRoom.save();
+            console.log('✅ Member added to meeting room:', userId);
+        } else {
+            console.log('ℹ️ User already member of meeting room');
         }
 
         return meetingRoom;
     } catch (error) {
-        console.error('Erreur lors de l\'ajout du membre à la salle:', error);
+        console.error('❌ Error adding member to meeting room:', error);
         throw error;
     }
 };
@@ -66,14 +95,19 @@ const ajouterMembreMeetingRoom = async (projectId, userId) => {
 // @access  Private
 const getMesSallesReunion = async (req, res) => {
     try {
+        const userId = req.user._id;
+
         const salles = await MeetingRoom.find({
-            'membres.utilisateur': req.user._id,
+            $or: [
+                { createur: userId },
+                { 'membres.utilisateur': userId }
+            ],
             statut: 'active'
         })
         .populate('projet', 'nom description statut')
         .populate('createur', 'nom prenom email')
         .populate('membres.utilisateur', 'nom prenom email')
-        .sort({ 'reunionEnCours.active': -1, createdAt: -1 }); // Les réunions actives en premier
+        .sort({ 'reunionEnCours.active': -1, createdAt: -1 });
 
         res.status(200).json({
             nombre: salles.length,
@@ -81,16 +115,18 @@ const getMesSallesReunion = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur lors de la récupération des salles:', error);
+        console.error('❌ Error fetching meeting rooms:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
 // @desc    Récupérer une salle de réunion spécifique
 // @route   GET /api/meetings/:roomId
-// @access  Private (membres de la salle)
+// @access  Private
 const getSalleReunion = async (req, res) => {
     try {
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId)
             .populate('projet', 'nom description statut')
             .populate('createur', 'nom prenom email')
@@ -102,15 +138,41 @@ const getSalleReunion = async (req, res) => {
             return res.status(404).json({ message: 'Salle de réunion non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est membre de la salle
-        if (!salle.estMembre(req.user._id)) {
-            return res.status(403).json({ message: 'Accès refusé. Vous n\'êtes pas membre de cette salle.' });
+        const isCreator = salle.createur._id.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur._id.toString() === userId
+        );
+
+        if (!isCreator && !isMember) {
+            if (salle.projet) {
+                const project = await Project.findById(salle.projet._id);
+                if (project) {
+                    const isProjectMember = project.estMembre(userId);
+                    if (isProjectMember) {
+                        console.log('ℹ️ User is project member. Adding to meeting room...');
+                        await ajouterMembreMeetingRoom(project._id, userId);
+                        
+                        const updatedSalle = await MeetingRoom.findById(req.params.roomId)
+                            .populate('projet', 'nom description statut')
+                            .populate('createur', 'nom prenom email')
+                            .populate('membres.utilisateur', 'nom prenom email')
+                            .populate('reunionEnCours.participantsActuels.utilisateur', 'nom prenom email')
+                            .populate('messages.expediteur', 'nom prenom email');
+                        
+                        return res.status(200).json(updatedSalle);
+                    }
+                }
+            }
+            
+            return res.status(403).json({ 
+                message: 'Accès refusé. Vous n\'êtes pas membre de cette salle.' 
+            });
         }
 
         res.status(200).json(salle);
 
     } catch (error) {
-        console.error('Erreur lors de la récupération de la salle:', error);
+        console.error('❌ Error fetching meeting room:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
@@ -137,15 +199,24 @@ const rejoindreSalleAvecCode = async (req, res) => {
             return res.status(404).json({ message: 'Salle non trouvée avec ce code' });
         }
 
-        // Vérifier si l'utilisateur est déjà membre
-        if (salle.estMembre(req.user._id)) {
+        const userId = req.user._id.toString();
+        const isCreator = salle.createur._id.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur.toString() === userId
+        );
+
+        if (isCreator || isMember) {
             return res.status(400).json({ message: 'Vous êtes déjà membre de cette salle' });
         }
 
-        // Ajouter l'utilisateur à la salle
-        salle.ajouterMembre(req.user._id, 'participant');
-        await salle.save();
+        salle.membres.push({
+            utilisateur: req.user._id,
+            role: 'participant',
+            statut: 'offline',
+            dateAjout: new Date()
+        });
 
+        await salle.save();
         await salle.populate('membres.utilisateur', 'nom prenom email');
 
         res.status(200).json({
@@ -154,46 +225,87 @@ const rejoindreSalleAvecCode = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error joining meeting room:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
-// @desc    Démarrer une réunion
+// @desc    Démarrer une réunion - UPDATED
 // @route   POST /api/meetings/:roomId/start
-// @access  Private (hôte ou modérateur)
+// @access  Private
 const demarrerReunion = async (req, res) => {
     try {
-        const salle = await MeetingRoom.findById(req.params.roomId);
+        const userId = req.user._id.toString();
+
+        const salle = await MeetingRoom.findById(req.params.roomId)
+            .populate('reunionEnCours.participantsActuels.utilisateur', 'nom prenom email');
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est membre
-        if (!salle.estMembre(req.user._id)) {
+        const isCreator = salle.createur.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur.toString() === userId
+        );
+
+        if (!isCreator && !isMember) {
             return res.status(403).json({ message: 'Accès refusé' });
         }
 
-        // Vérifier si une réunion est déjà en cours
+        // If meeting is already active
         if (salle.reunionEnCours.active) {
-            return res.status(400).json({ message: 'Une réunion est déjà en cours' });
+            const alreadyInMeeting = salle.reunionEnCours.participantsActuels.some(
+                p => p.utilisateur.toString() === userId
+            );
+
+            if (alreadyInMeeting) {
+                return res.status(200).json({
+                    message: 'Vous êtes déjà dans la réunion',
+                    salle
+                });
+            }
+
+            // Add user to existing meeting
+            salle.reunionEnCours.participantsActuels.push({
+                utilisateur: req.user._id,
+                dateConnexion: new Date(),
+                micro: req.body.micro || false,
+                camera: req.body.camera || false,
+                partageEcran: false
+            });
+
+            // Add to complete participants list BEFORE saving
+            salle.ajouterParticipantReunion(req.user._id);
+
+            await salle.save();
+            await salle.populate('reunionEnCours.participantsActuels.utilisateur', 'nom prenom email');
+
+            return res.status(200).json({
+                message: 'Vous avez rejoint la réunion',
+                salle
+            });
         }
 
-        // Démarrer la réunion
+        // Start new meeting
         salle.demarrerReunion();
         
-        // Ajouter l'utilisateur actuel comme premier participant
-        salle.reunionEnCours.participantsActuels.push({
+        // Add user as first participant
+        salle.reunionEnCours.participantsActuels = [{
             utilisateur: req.user._id,
             dateConnexion: new Date(),
             micro: req.body.micro || false,
             camera: req.body.camera || false,
             partageEcran: false
-        });
+        }];
+
+        // Add to complete participants list BEFORE saving
+        salle.ajouterParticipantReunion(req.user._id);
 
         await salle.save();
         await salle.populate('reunionEnCours.participantsActuels.utilisateur', 'nom prenom email');
+
+        console.log('✅ Meeting started successfully');
 
         res.status(200).json({
             message: 'Réunion démarrée avec succès',
@@ -201,42 +313,50 @@ const demarrerReunion = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error starting meeting:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
-// @desc    Rejoindre une réunion en cours
+// @desc    Rejoindre une réunion en cours - UPDATED
 // @route   POST /api/meetings/:roomId/join-meeting
-// @access  Private (membres de la salle)
+// @access  Private
 const rejoindreReunion = async (req, res) => {
     try {
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId);
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est membre
-        if (!salle.estMembre(req.user._id)) {
+        const isCreator = salle.createur.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur.toString() === userId
+        );
+
+        if (!isCreator && !isMember) {
             return res.status(403).json({ message: 'Accès refusé' });
         }
 
-        // Vérifier si une réunion est en cours
         if (!salle.reunionEnCours.active) {
             return res.status(400).json({ message: 'Aucune réunion en cours' });
         }
 
-        // Vérifier si l'utilisateur n'est pas déjà dans la réunion
         const dejaPresent = salle.reunionEnCours.participantsActuels.some(
-            p => p.utilisateur.toString() === req.user._id.toString()
+            p => p.utilisateur.toString() === userId
         );
 
         if (dejaPresent) {
-            return res.status(400).json({ message: 'Vous êtes déjà dans la réunion' });
+            await salle.populate('reunionEnCours.participantsActuels.utilisateur', 'nom prenom email');
+            return res.status(200).json({
+                message: 'Vous êtes déjà dans la réunion',
+                salle
+            });
         }
 
-        // Ajouter l'utilisateur à la réunion
+        // Add user to meeting
         salle.reunionEnCours.participantsActuels.push({
             utilisateur: req.user._id,
             dateConnexion: new Date(),
@@ -244,6 +364,9 @@ const rejoindreReunion = async (req, res) => {
             camera: req.body.camera || false,
             partageEcran: false
         });
+
+        // Add to complete participants list BEFORE saving
+        salle.ajouterParticipantReunion(req.user._id);
 
         await salle.save();
         await salle.populate('reunionEnCours.participantsActuels.utilisateur', 'nom prenom email');
@@ -254,30 +377,36 @@ const rejoindreReunion = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error joining meeting:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
-// @desc    Quitter une réunion
+// @desc    Quitter une réunion - UPDATED
 // @route   POST /api/meetings/:roomId/leave-meeting
 // @access  Private
 const quitterReunion = async (req, res) => {
     try {
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId);
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Retirer l'utilisateur de la réunion en cours
+        // NOUVEAU: Enregistrer la déconnexion du participant
+        salle.retirerParticipantReunion(userId);
+
+        // Remove user from current participants
         salle.reunionEnCours.participantsActuels = salle.reunionEnCours.participantsActuels.filter(
-            p => p.utilisateur.toString() !== req.user._id.toString()
+            p => p.utilisateur.toString() !== userId
         );
 
-        // Si c'était le dernier participant, terminer la réunion
-        if (salle.reunionEnCours.participantsActuels.length === 0) {
+        // If last participant, end meeting
+        if (salle.reunionEnCours.participantsActuels.length === 0 && salle.reunionEnCours.active) {
             salle.terminerReunion();
+            console.log('ℹ️ Last participant left. Meeting ended.');
         }
 
         await salle.save();
@@ -285,35 +414,42 @@ const quitterReunion = async (req, res) => {
         res.status(200).json({ message: 'Vous avez quitté la réunion' });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error leaving meeting:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
 // @desc    Terminer une réunion
 // @route   POST /api/meetings/:roomId/end
-// @access  Private (hôte uniquement)
+// @access  Private (host only)
 const terminerReunion = async (req, res) => {
     try {
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId);
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est l'hôte
-        if (!salle.estHote(req.user._id)) {
+        const isCreator = salle.createur.toString() === userId;
+        const isHost = salle.membres.some(
+            m => m.utilisateur.toString() === userId && m.role === 'host'
+        );
+
+        if (!isCreator && !isHost) {
             return res.status(403).json({ message: 'Seul l\'hôte peut terminer la réunion' });
         }
 
-        // Vérifier si une réunion est en cours
         if (!salle.reunionEnCours.active) {
             return res.status(400).json({ message: 'Aucune réunion en cours' });
         }
 
-        // Terminer la réunion
+        // End meeting
         salle.terminerReunion();
         await salle.save();
+
+        console.log('✅ Meeting ended by host');
 
         res.status(200).json({
             message: 'Réunion terminée avec succès',
@@ -321,25 +457,31 @@ const terminerReunion = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error ending meeting:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
-// @desc    Envoyer un message dans le chat de la salle
+// @desc    Envoyer un message dans le chat
 // @route   POST /api/meetings/:roomId/messages
-// @access  Private (membres de la salle)
+// @access  Private
 const envoyerMessage = async (req, res) => {
     try {
         const { contenu, type = 'text' } = req.body;
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId);
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est membre
-        if (!salle.estMembre(req.user._id)) {
+        const isCreator = salle.createur.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur.toString() === userId
+        );
+
+        if (!isCreator && !isMember) {
             return res.status(403).json({ message: 'Accès refusé' });
         }
 
@@ -347,20 +489,16 @@ const envoyerMessage = async (req, res) => {
             return res.status(400).json({ message: 'Le contenu du message est requis' });
         }
 
-        // Ajouter le message
-        const message = {
+        salle.messages.push({
             expediteur: req.user._id,
             contenu,
             type,
             dateEnvoi: new Date()
-        };
+        });
 
-        salle.messages.push(message);
         await salle.save();
-
         await salle.populate('messages.expediteur', 'nom prenom email');
 
-        // Récupérer le dernier message ajouté
         const dernierMessage = salle.messages[salle.messages.length - 1];
 
         res.status(201).json({
@@ -369,27 +507,36 @@ const envoyerMessage = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error sending message:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
 // @desc    Récupérer les messages d'une salle
 // @route   GET /api/meetings/:roomId/messages
-// @access  Private (membres de la salle)
+// @access  Private
 const getMessages = async (req, res) => {
     try {
         const { limit = 50 } = req.query;
+        const userId = req.user._id.toString();
         
         const salle = await MeetingRoom.findById(req.params.roomId)
-            .select('messages')
+            .select('messages membres createur')
             .populate('messages.expediteur', 'nom prenom email');
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Récupérer les derniers messages
+        const isCreator = salle.createur.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur.toString() === userId
+        );
+
+        if (!isCreator && !isMember) {
+            return res.status(403).json({ message: 'Accès refusé' });
+        }
+
         const messages = salle.messages
             .slice(-parseInt(limit))
             .sort((a, b) => a.dateEnvoi - b.dateEnvoi);
@@ -400,30 +547,35 @@ const getMessages = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error fetching messages:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
 // @desc    Mettre à jour les paramètres de la salle
 // @route   PUT /api/meetings/:roomId/settings
-// @access  Private (hôte uniquement)
+// @access  Private (host only)
 const updateParametres = async (req, res) => {
     try {
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId);
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est l'hôte
-        if (!salle.estHote(req.user._id)) {
+        const isCreator = salle.createur.toString() === userId;
+        const isHost = salle.membres.some(
+            m => m.utilisateur.toString() === userId && m.role === 'host'
+        );
+
+        if (!isCreator && !isHost) {
             return res.status(403).json({ message: 'Seul l\'hôte peut modifier les paramètres' });
         }
 
         const { microParDefaut, cameraParDefaut, chatActive, partageEcranActive, enregistrementAutorise } = req.body;
 
-        // Mettre à jour les paramètres
         if (microParDefaut !== undefined) salle.parametres.microParDefaut = microParDefaut;
         if (cameraParDefaut !== undefined) salle.parametres.cameraParDefaut = cameraParDefaut;
         if (chatActive !== undefined) salle.parametres.chatActive = chatActive;
@@ -438,26 +590,32 @@ const updateParametres = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error updating settings:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
 // @desc    Récupérer l'historique des réunions
 // @route   GET /api/meetings/:roomId/history
-// @access  Private (membres de la salle)
+// @access  Private
 const getHistorique = async (req, res) => {
     try {
+        const userId = req.user._id.toString();
+
         const salle = await MeetingRoom.findById(req.params.roomId)
-            .select('historique statistiques')
+            .select('historique statistiques membres createur')
             .populate('historique.participants.utilisateur', 'nom prenom email');
 
         if (!salle) {
             return res.status(404).json({ message: 'Salle non trouvée' });
         }
 
-        // Vérifier que l'utilisateur est membre
-        if (!salle.estMembre(req.user._id)) {
+        const isCreator = salle.createur.toString() === userId;
+        const isMember = salle.membres.some(
+            m => m.utilisateur.toString() === userId
+        );
+
+        if (!isCreator && !isMember) {
             return res.status(403).json({ message: 'Accès refusé' });
         }
 
@@ -467,7 +625,7 @@ const getHistorique = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Error fetching history:', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 };
