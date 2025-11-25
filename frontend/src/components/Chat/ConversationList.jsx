@@ -28,17 +28,7 @@ export default function ConversationList({ selectedChatId, onSelectChat }) {
     }
   };
 
-  const getPreview = async (chatId) => {
-    try {
-      const res = await getMessages(chatId);
-      const messages = res.messages || res;
-      if (messages.length === 0) return { text: '', time: '' };
-      const last = messages[messages.length - 1];
-      return { text: last.contenu, time: new Date(last.createdAt).toLocaleTimeString() };
-    } catch (err) {
-      return { text: '', time: '' };
-    }
-  };
+  // We now rely on the backend to provide a lastMessage and unread count in the chat object
 
   // Preloading last messages may be a bit heavy; keep minimal for now
 
@@ -51,7 +41,7 @@ export default function ConversationList({ selectedChatId, onSelectChat }) {
     <div className="flex flex-col h-full bg-white">
       <div className="px-4 py-3 border-b">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Messages</h3>
+          <h3 className="font-semibold">Messages <span className="text-sm text-gray-400">{chats.length}</span></h3>
           <button
             className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-full"
             onClick={() => navigate('/projects')}
@@ -95,23 +85,14 @@ function ChatListItem({ chat, active, onClick }) {
   const initials = name.split(' ').map(s => s[0]).slice(0, 2).join('');
   const [preview, setPreview] = useState({ text: '', time: '' });
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await getMessages(chat._id);
-        const messages = res.messages || res;
-        if (messages.length > 0) {
-          const last = messages[messages.length - 1];
-          const time = formatRelativeTime(new Date(last.createdAt));
-          if (mounted) setPreview({ text: last.contenu, time });
-        }
-      } catch (err) {
-        // ignore
-      }
-    })();
-    return () => { mounted = false };
-  }, [chat._id]);
+  // Use lastMessage provided by backend (chat.lastMessage)
+  useEffect(()=>{
+    if (chat?.lastMessage) {
+      setPreview({ text: chat.lastMessage.contenu || '', time: formatRelativeTime(new Date(chat.lastMessage.createdAt || chat.lastMessage.dateEnvoi || Date.now())) });
+    } else {
+      setPreview({ text: '', time: '' });
+    }
+  }, [chat.lastMessage]);
 
   const formatRelativeTime = (date) => {
     const now = new Date();

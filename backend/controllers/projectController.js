@@ -128,13 +128,22 @@ const rejoindreProjet = async (req, res) => {
             // On continue même si l'ajout à la salle échoue
         }
 
-        // NOUVEAU: Ajouter l'utilisateur au chat du projet (crée le chat si absent)
+        // NOUVEAU: Ajouter l'utilisateur au chat du projet (crée le chat si absent). Ensure no duplicates.
         try {
-            await Chat.findOneAndUpdate(
-                { projet: projet._id },
-                { $push: { membres: { utilisateur: req.user._id } } },
-                { upsert: true }
-            );
+            let chat = await Chat.findOne({ projet: projet._id });
+            if (!chat) {
+                chat = await Chat.create({
+                    projet: projet._id,
+                    nom: `${projet.nom} - Chat`,
+                    membres: projet.membres.map(m => ({ utilisateur: m.utilisateur }))
+                });
+            } else {
+                const isMember = chat.membres.some(m => m.utilisateur.toString() === req.user._id.toString());
+                if (!isMember) {
+                    chat.membres.push({ utilisateur: req.user._id });
+                    await chat.save();
+                }
+            }
         } catch (chatErr) {
             console.error('Erreur lors de l\'ajout au chat du projet:', chatErr);
         }
