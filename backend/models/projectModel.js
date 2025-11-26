@@ -5,8 +5,7 @@ const projectSchema = mongoose.Schema(
         nom: {
             type: String,
             required: [true, 'Veuillez entrer un nom de projet'],
-            trim: true,
-            unique: true
+            trim: true
         },
         description: {
             type: String,
@@ -87,7 +86,7 @@ const projectSchema = mongoose.Schema(
 );
 
 // Méthode pour générer un code d'accès unique
-projectSchema.statics.genererCodeAcces = function() {
+projectSchema.statics.genererCodeAcces = function () {
     // Génère un code de 6 caractères alphanumériques
     const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
@@ -98,18 +97,18 @@ projectSchema.statics.genererCodeAcces = function() {
 };
 
 // Méthode pour vérifier si un utilisateur est membre du projet
-projectSchema.methods.estMembre = function(userId) {
-    return this.membres.some(m => m.utilisateur.toString() === userId.toString()) || 
-           this.createur.toString() === userId.toString();
+projectSchema.methods.estMembre = function (userId) {
+    return this.membres.some(m => m.utilisateur.toString() === userId.toString()) ||
+        this.createur.toString() === userId.toString();
 };
 
 // Méthode pour vérifier si un utilisateur est le créateur
-projectSchema.methods.estCreateur = function(userId) {
+projectSchema.methods.estCreateur = function (userId) {
     return this.createur.toString() === userId.toString();
 };
 
 // Middleware pour supprimer les ressources associées quand le projet est supprimé
-projectSchema.pre('deleteOne', { document: true, query: false }, async function(next) {
+projectSchema.pre('deleteOne', { document: true, query: false }, async function (next) {
     try {
         const MeetingRoom = require('./meetingRoomModel');
         const Chat = require('./chatModel');

@@ -12,7 +12,7 @@ const creerTache = async (req, res) => {
         if (!nom) {
             return res.status(400).json({ message: 'Le nom de la tâche est requis' });
         }
-        
+
         const projet = await Project.findById(projectId);
 
         if (!projet) {
@@ -23,7 +23,7 @@ const creerTache = async (req, res) => {
         if (!projet.estCreateur(req.user._id)) {
             return res.status(403).json({ message: 'Seul le chef de projet peut ajouter des tâches' });
         }
-        
+
         // AJOUT : Vérifier que la date d'échéance de la tâche ne dépasse pas celle du projet
         if (dateEcheance && projet.dateEcheance) {
             if (new Date(dateEcheance) > new Date(projet.dateEcheance)) {
@@ -119,7 +119,7 @@ const getTache = async (req, res) => {
         }
 
         const projet = await Project.findById(tache.projet._id);
-        
+
         // Vérifier que l'utilisateur est membre du projet
         if (!projet.estMembre(req.user._id)) {
             return res.status(403).json({ message: 'Accès refusé' });
@@ -149,7 +149,7 @@ const updateTache = async (req, res) => {
 
         // Le créateur du projet peut tout modifier
         const isCreateur = projet.estCreateur(req.user._id);
-        
+
         // L'utilisateur assigné peut seulement changer le statut
         const isAssigne = tache.assigneA && tache.assigneA.toString() === req.user._id.toString();
 
@@ -178,19 +178,25 @@ const updateTache = async (req, res) => {
             if (statut) tache.statut = statut;
             if (priorite) tache.priorite = priorite;
             if (dateEcheance) tache.dateEcheance = dateEcheance;
-            
+
             // Si on change l'assignation, vérifier que le nouvel utilisateur est bien membre
             if (assigneA !== undefined) {
-                if (assigneA && !projet.estMembre(assigneA)) {
-                    return res.status(400).json({ message: 'L\'utilisateur assigné doit être membre du projet' });
+                // Si assigneA est null, chaîne vide, ou valeur falsy, désassigner la tâche
+                if (!assigneA || assigneA === '' || assigneA === null) {
+                    tache.assigneA = null;
+                } else {
+                    // Si une valeur est fournie, vérifier que l'utilisateur est membre du projet
+                    if (!projet.estMembre(assigneA)) {
+                        return res.status(400).json({ message: 'L\'utilisateur assigné doit être membre du projet' });
+                    }
+                    tache.assigneA = assigneA;
                 }
-                tache.assigneA = assigneA;
             }
         }
 
         const tacheMiseAJour = await tache.save();
         await tacheMiseAJour.populate('assigneA', 'nom prenom email');
-        
+
         res.status(200).json({
             message: 'Tâche mise à jour avec succès',
             tache: tacheMiseAJour
@@ -216,12 +222,19 @@ const deleteTache = async (req, res) => {
         if (!tache) {
             return res.status(404).json({ message: 'Tâche non trouvée' });
         }
-        
+
         const projet = await Project.findById(tache.projet);
-        
+
         // Seul le créateur du projet peut supprimer la tâche
         if (!projet.estCreateur(req.user._id)) {
             return res.status(403).json({ message: 'Action non autorisée' });
+        }
+
+        // Vérifier si la tâche est assignée
+        if (tache.assigneA) {
+            return res.status(400).json({
+                message: 'Impossible de supprimer une tâche assignée. Veuillez d\'abord désassigner la tâche.'
+            });
         }
 
         // Retirer la tâche du tableau de tâches du projet
@@ -231,7 +244,7 @@ const deleteTache = async (req, res) => {
         );
 
         await tache.deleteOne();
-        
+
         res.status(200).json({ message: 'Tâche supprimée avec succès' });
 
     } catch (error) {

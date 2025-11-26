@@ -18,6 +18,24 @@ const creerProjet = async (req, res) => {
             return res.status(400).json({ message: 'Le nom du projet est requis' });
         }
 
+        // Vérifier si un projet avec le même nom existe déjà
+        const projetAvecMemeNom = await Project.findOne({ nom: nom.trim() });
+        if (projetAvecMemeNom) {
+            return res.status(400).json({ message: 'Un projet avec ce nom existe déjà' });
+        }
+
+        // Vérifier que la date d'échéance est dans le futur
+        if (dateEcheance) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadline = new Date(dateEcheance);
+            deadline.setHours(0, 0, 0, 0);
+            
+            if (deadline <= today) {
+                return res.status(400).json({ message: 'La date d\'échéance doit être supérieure à aujourd\'hui' });
+            }
+        }
+
         let codeAcces;
         let codeExiste = true;
         
@@ -301,11 +319,31 @@ const updateProjet = async (req, res) => {
 
         const { nom, description, statut, priorite, dateEcheance, progression } = req.body;
 
-        if (nom) projet.nom = nom;
+        // Vérifier si le nom est modifié et s'il existe déjà
+        if (nom && nom !== projet.nom) {
+            const projetAvecMemeNom = await Project.findOne({ nom: nom.trim() });
+            if (projetAvecMemeNom) {
+                return res.status(400).json({ message: 'Un projet avec ce nom existe déjà' });
+            }
+            projet.nom = nom;
+        }
+
+        // Vérifier que la nouvelle date d'échéance est dans le futur
+        if (dateEcheance) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadline = new Date(dateEcheance);
+            deadline.setHours(0, 0, 0, 0);
+            
+            if (deadline <= today) {
+                return res.status(400).json({ message: 'La date d\'échéance doit être supérieure à aujourd\'hui' });
+            }
+            projet.dateEcheance = dateEcheance;
+        }
+
         if (description !== undefined) projet.description = description;
         if (statut) projet.statut = statut;
         if (priorite) projet.priorite = priorite;
-        if (dateEcheance) projet.dateEcheance = dateEcheance;
         if (progression !== undefined) projet.progression = progression;
 
         await projet.save();
